@@ -9,7 +9,11 @@ export interface TargetRow
     port: number;
     enabled: boolean;
 }
-
+export interface SamplePoint
+{
+    reachable: boolean;
+    latencyMs: number | null;
+}
 export interface StatusRow
 {
     targetId: number;
@@ -21,6 +25,7 @@ export interface StatusRow
     jitterMs: number | null;
     quality: string | null;
     checkedAt: Date | null;
+    samples: SamplePoint[];
 }
 
 export class ChecksRepository
@@ -84,8 +89,11 @@ export class ChecksRepository
     }
 
     /** Newest run per target, keeping targets that were never checked. */
+     /** Newest run per target, keeping targets that were never checked. */
     async latestStatus(): Promise<StatusRow[]>
     {
+        // Individual samples travel with the summary: five steady replies and four
+        // fast ones plus a timeout average out the same but mean different things.
         const { rows } = await this.db.query<StatusRow>(`
             SELECT DISTINCT ON (t.id)
                 t.id AS "targetId", t.name, t.host, t.port,
@@ -93,7 +101,12 @@ export class ChecksRepository
                 r.average_ms AS "averageMs",
                 r.jitter_ms AS "jitterMs",
                 r.quality,
-                c.started_at AS "checkedAt"
+                c.started_at AS "checkedAt",
+                COALESCE((
+                    SELECT json_agg(json_build_object('reachable', s.reachable, 'latencyMs', s.latency_ms) ORDER BY s.id)
+                    FROM samples s
+                    WHERE s.target_run_id = r.id
+                ), '[]'::json) AS samples
             FROM targets t
             LEFT JOIN target_runs r ON r.target_id = t.id
             LEFT JOIN checks c ON c.id = r.check_id
