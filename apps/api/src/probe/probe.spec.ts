@@ -86,6 +86,6 @@ describe('measureTarget', () =>
 
     expect(result.statistics.lossPercent).toBe(100);
     expect(result.statistics.quality).toBe('unusable');
-    expect(result.statistics.averageMs).toBeNuыll();
+    expect(result.statistics.averageMs).toBeNull();
   });
 });
