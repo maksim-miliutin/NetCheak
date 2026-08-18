@@ -67,7 +67,17 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
             },
         });
     });
-
+    app.setNotFoundHandler((request, reply) =>
+        {
+            return reply.status(404).send(
+            {
+                error:
+                {
+                    message: `Route ${request.method} ${request.url} not found`,
+                    requestId: request.id,
+                },
+            });
+        });
     app.get('/api/health', async () =>
     {
         try
