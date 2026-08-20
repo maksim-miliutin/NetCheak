@@ -1,0 +1,95 @@
+body
+{
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 0 16px;
+    font-family: system-ui, sans-serif;
+    line-height: 1.5;
+}
+
+h1
+{
+    margin: 0 0 4px;
+    font-size: 22px;
+}
+
+p
+{
+    margin: 0 0 24px;
+    color: #555;
+}
+
+button
+{
+    margin-right: 8px;
+    padding: 6px 12px;
+    font: inherit;
+}
+
+table
+{
+    width: 100%;
+    margin-top: 24px;
+    border-collapse: collapse;
+}
+
+th
+{
+    font-weight: normal;
+    text-align: right;
+    color: #555;
+}
+
+th:first-child
+{
+    text-align: left;
+}
+
+td
+{
+    padding: 8px 0;
+    text-align: right;
+    border-top: 1px solid #ddd;
+}
+
+td:first-child
+{
+    text-align: left;
+}
+
+.host,
+.small
+{
+    color: #777;
+    font-size: 13px;
+}
+
+.bars
+{
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+}
+
+.bar
+{
+    width: 4px;
+    background: #999;
+}
+
+.bar.lost
+{
+    height: 14px;
+    background: #c00;
+}
+
+.speed
+{
+    font-size: 17px;
+}
+
+.error
+{
+    color: #c00;
+}
