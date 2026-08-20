@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Database } from '../db/database';
 import type { ChecksRepository } from '../db/checks.repository';
 import { measureTarget } from '../probe/probe';
+import { judge } from '../verdict/verdict';
 
 export interface ServerOptions
 {
@@ -82,17 +83,24 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     {
         try
         {
-            return { status: 'ok', database: { reachable: true, latencyMs: await db.ping() } };
+            return { status: 'ok', database: { reachable: true, latencyMs: db.ping() } };
         }
         catch (err)
         {
-            return { status: 'degraded', database: { reachable: false, error: (err as Error).message } };
+            const error = (err as Error).message;
+
+            return { status: 'degraded', database: { reachable: false, error } };
         }
     });
 
-    app.get('/api/targets', async () => ({ targets: await repository.listTargets() }));
+    app.get('/api/targets', async () => ({ targets: repository.listTargets() }));
 
-    app.get('/api/status', async () => ({ targets: await repository.latestStatus() }));
+    app.get('/api/status', async () =>
+    {
+        const targets = repository.latestStatus();
+
+        return { verdict: judge(targets), targets };
+    });
 
     app.post('/api/checks', async (request) =>
     {
@@ -110,21 +118,24 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
             throw badRequest('timeoutMs must be an integer between 100 and 30000');
         }
 
-        const targets = (await repository.listTargets()).filter((t) => t.enabled);
-        const checkId = await repository.createCheck(attempts, timeoutMs);
+        const targets = repository.listTargets().filter((t) => t.enabled);
+        const checkId = repository.createCheck(attempts, timeoutMs);
 
         // Targets run in parallel: ten of them at five attempts with a three second
         // timeout would take two and a half minutes in sequence.
-        const results = await Promise.all(
-            targets.map((t) => measureTarget({ name: t.name, host: t.host, port: t.port }, { attempts, timeoutMs })),
-        );
+        const measured = await Promise.all(targets.map(async (t) =>
+        ({
+            id: t.id,
+            result: await measureTarget({ name: t.name, host: t.host, port: t.port },
+                { attempts, timeoutMs }),
+        })));
 
-        for (let i = 0; i < results.length; i += 1)
+        for (const { id, result } of measured)
         {
-            await repository.saveResult(checkId, targets[i].id, results[i]);
+            repository.saveResult(checkId, id, result);
         }
 
-        return { checkId, results };
+        return { checkId, results: measured.map((v) => v.result) };
     });
 
     return app;

@@ -1,36 +1,29 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { Database } from '../db/database';
 import { ChecksRepository } from '../db/checks.repository';
 import { buildServer } from './server';
 
-const connectionString = process.env.TEST_DATABASE_URL;
 const migrations = join(__dirname, '..', '..', 'migrations');
 
-describe.skipIf(!connectionString)('HTTP API', () =>
+describe('HTTP API', () =>
 {
     let db: Database;
     let app: FastifyInstance;
 
-    beforeAll(async () =>
+    beforeEach(async () =>
     {
-        db = new Database(connectionString as string);
-        await db.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+        db = new Database(':memory:');
         await db.migrate(migrations);
 
         app = await buildServer({ db, repository: new ChecksRepository(db), logLevel: 'silent' });
     });
 
-    afterAll(async () =>
+    afterEach(async () =>
     {
         await app.close();
-        await db.close();
-    });
-
-    beforeEach(async () =>
-    {
-        await db.query('TRUNCATE checks, target_runs, samples RESTART IDENTITY CASCADE');
+        db.close();
     });
 
     it('reports health with database latency', async () =>
@@ -57,6 +50,13 @@ describe.skipIf(!connectionString)('HTTP API', () =>
 
         expect(targets).toHaveLength(4);
         expect(targets.every((t: { quality: string | null }) => t.quality === null)).toBe(true);
+    });
+
+    it('answers status with a verdict beside the rows', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/status' });
+
+        expect(response.json().verdict).toMatchObject({ level: 'unknown', cause: 'never-checked' });
     });
 
     it('carries a request id in both the header and the body', async () =>
@@ -87,10 +87,13 @@ describe.skipIf(!connectionString)('HTTP API', () =>
         expect(response.json().error.message).toBeTruthy();
     });
 
+    // Port 1 on loopback refuses instantly, which is a reachable host with nothing
+    // listening: the check has to come back as a total loss rather than as an error.
     it('runs a check against a local port and stores the result', async () =>
     {
-        await db.query('UPDATE targets SET enabled = false');
-        await db.query('INSERT INTO targets (name, host, port) VALUES ($1, $2, $3)', ['local', '127.0.0.1', 1]);
+        db.exec('UPDATE targets SET enabled = 0');
+        db.prepare('INSERT INTO targets (name, host, port) VALUES (?, ?, ?)')
+            .run('local', '127.0.0.1', 1);
 
         const response = await app.inject(
         {
