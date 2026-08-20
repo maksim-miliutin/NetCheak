@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Database } from './database';
+import { Database } from './database.ts';
 
 const migrations = join(__dirname, '..', '..', 'migrations');
 

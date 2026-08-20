@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
-import { Database } from './database';
-import { ChecksRepository, type StatusRow } from './checks.repository';
-import { computeStatistics, type Sample } from '../probe/statistics';
-import type { TargetResult } from '../probe/probe';
+import { Database } from './database.ts';
+import { ChecksRepository, type StatusRow } from './checks.repository.ts';
+import { computeStatistics, type Sample } from '../probe/statistics.ts';
+import type { TargetResult } from '../probe/probe.ts';
 
 const migrations = join(__dirname, '..', '..', 'migrations');
 

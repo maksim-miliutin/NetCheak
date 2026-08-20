@@ -8,7 +8,7 @@ import
     type SpeedOptions,
     type SpeedResult,
     type Transfer,
-} from './speed';
+} from './speed.ts';
 
 export interface Source
 {
@@ -74,7 +74,7 @@ async function readStream(url: string, durationMs: number): Promise<Transfer | n
 
     try
     {
-        const response = await fetch(url, { signal: control.signal, cache: 'no-store' });
+        const response = await fetch(url, { signal: control.signal });
 
         if (!response.ok || response.body === null)
         {

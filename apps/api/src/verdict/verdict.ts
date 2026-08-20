@@ -1,4 +1,4 @@
-import type { StatusRow } from '../db/checks.repository';
+import type { StatusRow } from '../db/checks.repository.ts';
 
 export type Level = 'ok' | 'warn' | 'down' | 'unknown';
 

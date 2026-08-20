@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULTS, share, summarise, type Transfer } from './speed';
+import { DEFAULTS, share, summarise, type Transfer } from './speed.ts';
 
 function stream(chunks: [number, number][], elapsedMs: number): Transfer
 {

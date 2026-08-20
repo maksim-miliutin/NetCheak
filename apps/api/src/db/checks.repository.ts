@@ -1,5 +1,6 @@
-import type { Database } from './database';
-import type { TargetResult } from '../probe/probe';
+import type { Database } from './database.ts';
+import type { TargetResult } from '../probe/probe.ts';
+import type { SpeedResult } from '../speed/speed.ts';
 
 export interface TargetRow
 {
@@ -14,6 +15,15 @@ export interface SamplePoint
 {
     reachable: boolean;
     latencyMs: number | null;
+}
+
+export interface SpeedRow
+{
+    measuredAt: string;
+    source: string;
+    downloadMbps: number | null;
+    uploadMbps: number | null;
+    streams: number;
 }
 
 export interface StatusRow
@@ -78,7 +88,12 @@ const LATEST_STATUS = `
 
 export class ChecksRepository
 {
-    constructor(private readonly db: Database) {}
+    private readonly db: Database;
+
+    constructor(db: Database)
+    {
+        this.db = db;
+    }
 
     listTargets(): TargetRow[]
     {
@@ -149,6 +164,38 @@ export class ChecksRepository
         const rows = this.db.prepare(LATEST_STATUS).all() as unknown as StatusRecord[];
 
         return rows.map((row) => ({ ...row, samples: parseSamples(row.samples) }));
+    }
+
+    saveSpeed(result: SpeedResult): void
+    {
+        this.db.prepare(`
+            INSERT INTO speed_runs
+                (source, download_mbps, upload_mbps, download_bytes, upload_bytes, streams)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+            result.source,
+            result.download?.megabits ?? null,
+            result.upload?.megabits ?? null,
+            result.download?.bytes ?? null,
+            result.upload?.bytes ?? null,
+            result.download?.streams ?? result.upload?.streams ?? 0,
+        );
+    }
+
+    latestSpeed(): SpeedRow | null
+    {
+        const row = this.db.prepare(`
+            SELECT
+                measured_at AS measuredAt, source,
+                download_mbps AS downloadMbps,
+                upload_mbps AS uploadMbps,
+                streams
+            FROM speed_runs
+            ORDER BY measured_at DESC, id DESC
+            LIMIT 1
+        `).get() as SpeedRow | undefined;
+
+        return row ?? null;
     }
 
     private insertSamples(runId: number, result: TargetResult): void

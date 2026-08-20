@@ -1,10 +1,11 @@
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import { randomUUID } from 'node:crypto';
-import type { Database } from '../db/database';
-import type { ChecksRepository } from '../db/checks.repository';
-import { measureTarget } from '../probe/probe';
-import { judge } from '../verdict/verdict';
+import type { Database } from '../db/database.ts';
+import type { ChecksRepository } from '../db/checks.repository.ts';
+import { measureTarget } from '../probe/probe.ts';
+import { judge } from '../verdict/verdict.ts';
+import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
 
 export interface ServerOptions
 {
@@ -99,7 +100,18 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     {
         const targets = repository.latestStatus();
 
-        return { verdict: judge(targets), targets };
+        return { verdict: judge(targets), targets, speed: repository.latestSpeed() };
+    });
+
+    // The measurement runs against a CDN rather than against this server: a transfer
+    // to localhost would report the speed of the loopback interface.
+    app.post('/api/speed', async () =>
+    {
+        const result = await measureSpeed(CLOUDFLARE);
+
+        repository.saveSpeed(result);
+
+        return result;
     });
 
     app.post('/api/checks', async (request) =>

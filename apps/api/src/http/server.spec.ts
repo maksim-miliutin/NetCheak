@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import { Database } from '../db/database';
-import { ChecksRepository } from '../db/checks.repository';
-import { buildServer } from './server';
+import { Database } from '../db/database.ts';
+import { ChecksRepository } from '../db/checks.repository.ts';
+import { buildServer } from './server.ts';
 
 const migrations = join(__dirname, '..', '..', 'migrations');
 
@@ -50,6 +50,13 @@ describe('HTTP API', () =>
 
         expect(targets).toHaveLength(4);
         expect(targets.every((t: { quality: string | null }) => t.quality === null)).toBe(true);
+    });
+
+    it('carries the last speed run beside the status, or nothing yet', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/status' });
+
+        expect(response.json().speed).toBeNull();
     });
 
     it('answers status with a verdict beside the rows', async () =>

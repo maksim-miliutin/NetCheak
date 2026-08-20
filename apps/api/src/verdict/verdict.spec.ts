@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { judge } from './verdict';
-import type { StatusRow } from '../db/checks.repository';
+import { judge } from './verdict.ts';
+import type { StatusRow } from '../db/checks.repository.ts';
 
 interface Options
 {

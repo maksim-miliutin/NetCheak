@@ -1,5 +1,5 @@
 import { Socket } from 'node:net';
-import { computeStatistics, type Sample, type Statistics } from './statistics';
+import { computeStatistics, type Sample, type Statistics } from './statistics.ts';
 
 export interface Target
 {

@@ -1,9 +1,14 @@
-import { join } from 'node:path';
-import { Database } from './db/database';
-import { ChecksRepository } from './db/checks.repository';
-import { buildServer } from './http/server';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Database } from './db/database.ts';
+import { ChecksRepository } from './db/checks.repository.ts';
+import { buildServer } from './http/server.ts';
 
 const DEFAULT_PORT = 3001;
+
+// ESM has no __dirname, and the migrations sit beside the source rather than beside
+// whatever directory the process happened to start in.
+const here = dirname(fileURLToPath(import.meta.url));
 
 async function main(): Promise<void>
 {
@@ -12,7 +17,7 @@ async function main(): Promise<void>
     const file = process.env.NETCHECK_DB ?? join(process.cwd(), 'netcheck.db');
 
     const db = new Database(file);
-    await db.migrate(join(__dirname, '..', 'migrations'));
+    await db.migrate(join(here, '..', 'migrations'));
 
     const app = await buildServer({ db, repository: new ChecksRepository(db) });
     const port = Number.parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);

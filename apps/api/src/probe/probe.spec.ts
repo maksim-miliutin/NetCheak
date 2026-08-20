@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:net';
-import { measureTarget, probeOnce } from './probe';
+import { measureTarget, probeOnce } from './probe.ts';
 
 let server: Server;
 let openPort = 0;

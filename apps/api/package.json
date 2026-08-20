@@ -1,20 +1,20 @@
 {
-  "name": "@netcheck/api",
-  "private": true,
-  "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.2",
-    "@types/pg": "^8.23.1",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
-  },
-  "dependencies": {
-    "@fastify/cors": "^11.3.0",
-    "dotenv": "^17.4.2",
-    "fastify": "^5.12.0",
-    "pg": "^8.23.0"
-  }
+    "name": "@netcheck/api",
+    "private": true,
+    "scripts": {
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit",
+        "dev": "node --experimental-strip-types --watch src/main.ts",
+        "start": "node --experimental-strip-types src/main.ts"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.2",
+        "typescript": "^5.7.2",
+        "vitest": "^3.2.7"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.3.0",
+        "fastify": "^5.12.0"
+    },
+    "type": "module"
 }

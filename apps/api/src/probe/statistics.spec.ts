@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeStatistics, type Sample } from './statistics';
+import { computeStatistics, type Sample } from './statistics.ts';
 
 const ok = (ms: number): Sample => ({ reachable: true, latencyMs: ms, error: null });
 const failed = (): Sample => ({ reachable: false, latencyMs: null, error: 'timeout' });
