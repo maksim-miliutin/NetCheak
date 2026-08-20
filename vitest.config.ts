@@ -1,12 +1,6 @@
 import { defineConfig } from 'vitest/config';
-import { config } from 'dotenv';
-
-config();
 
 export default defineConfig(
 {
-    test:
-    {
-        fileParallelism: false,
-    },
+    test: { include: ['apps/api/src/**/*.spec.ts'] },
 });
