@@ -37,13 +37,23 @@ export class Database
         this.db.close();
     }
 
+    /** Round trip to the file, so health reports a number rather than a guess. */
+    ping(): number
+    {
+        const started = performance.now();
+        this.db.prepare('SELECT 1').get();
+
+        return Math.round(performance.now() - started);
+    }
+
     /** Applies pending migrations in file order, each inside its own transaction. */
     async migrate(directory: string): Promise<MigrationResult>
     {
         this.db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY)');
 
         const files = (await readdir(directory)).filter((f) => f.endsWith('.sql')).sort();
-        const done = new Set(this.db.prepare('SELECT version FROM schema_migrations').all().map((r) => r.version as string));
+        const rows = this.db.prepare('SELECT version FROM schema_migrations').all();
+        const done = new Set(rows.map((r) => r.version as string));
 
         const result: MigrationResult = { applied: [], skipped: [] };
 

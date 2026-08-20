@@ -9,11 +9,13 @@ export interface TargetRow
     port: number;
     enabled: boolean;
 }
+
 export interface SamplePoint
 {
     reachable: boolean;
     latencyMs: number | null;
 }
+
 export interface StatusRow
 {
     targetId: number;
@@ -24,96 +26,160 @@ export interface StatusRow
     averageMs: number | null;
     jitterMs: number | null;
     quality: string | null;
-    checkedAt: Date | null;
+    checkedAt: string | null;
     samples: SamplePoint[];
 }
+
+// SQLite has no boolean and no json type, so rows arrive shaped differently from
+// what the API promises: flags as 1 and 0, the sample list as text.
+interface TargetRecord extends Omit<TargetRow, 'enabled'>
+{
+    enabled: number;
+}
+
+interface StatusRecord extends Omit<StatusRow, 'samples'>
+{
+    samples: string | null;
+}
+
+const LATEST_STATUS = `
+    WITH ranked AS (
+        SELECT
+            r.id, r.target_id, r.loss_percent, r.average_ms, r.jitter_ms, r.quality,
+            c.started_at,
+            ROW_NUMBER() OVER (
+                PARTITION BY r.target_id ORDER BY c.started_at DESC, r.id DESC
+            ) AS place
+        FROM target_runs r
+        JOIN checks c ON c.id = r.check_id
+    )
+    SELECT
+        t.id AS targetId, t.name, t.host, t.port,
+        l.loss_percent AS lossPercent,
+        l.average_ms AS averageMs,
+        l.jitter_ms AS jitterMs,
+        l.quality,
+        l.started_at AS checkedAt,
+        (
+            SELECT json_group_array(json_object(
+                'reachable', s.reachable,
+                'latencyMs', s.latency_ms
+            ))
+            FROM (
+                SELECT reachable, latency_ms FROM samples
+                WHERE target_run_id = l.id ORDER BY id
+            ) s
+        ) AS samples
+    FROM targets t
+    LEFT JOIN ranked l ON l.target_id = t.id AND l.place = 1
+    WHERE t.enabled = 1
+    ORDER BY t.id
+`;
 
 export class ChecksRepository
 {
     constructor(private readonly db: Database) {}
 
-    async listTargets(): Promise<TargetRow[]>
+    listTargets(): TargetRow[]
     {
-        const { rows } = await this.db.query<TargetRow>('SELECT id, name, host, port, enabled FROM targets ORDER BY id');
+        const rows = this.db
+            .prepare('SELECT id, name, host, port, enabled FROM targets ORDER BY id')
+            .all() as unknown as TargetRecord[];
 
-        return rows;
+        return rows.map((row) => ({ ...row, enabled: row.enabled === 1 }));
     }
 
-    async createCheck(attempts: number, timeoutMs: number): Promise<number>
+    createCheck(attempts: number, timeoutMs: number): number
     {
-        const { rows } = await this.db.query<{ id: number }>(
-            'INSERT INTO checks (attempts, timeout_ms) VALUES ($1, $2) RETURNING id',
-            [attempts, timeoutMs],
-        );
+        const row = this.db
+            .prepare('INSERT INTO checks (attempts, timeout_ms) VALUES (?, ?) RETURNING id')
+            .get(attempts, timeoutMs) as { id: number } | undefined;
 
-        return rows[0].id;
+        if (row === undefined)
+        {
+            throw new Error('checks insert returned no id');
+        }
+
+        return row.id;
     }
 
-    async saveResult(checkId: number, targetId: number, result: TargetResult): Promise<number>
+    saveResult(checkId: number, targetId: number, result: TargetResult): number
     {
         const s = result.statistics;
 
-        const { rows } = await this.db.query<{ id: number }>(`
-            INSERT INTO target_runs
-                (check_id, target_id, sent, received, loss_percent,
-                 minimum_ms, average_ms, maximum_ms, median_ms, jitter_ms, quality)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            RETURNING id
-        `,
-        [
-            checkId, targetId, s.sent, s.received, s.lossPercent,
-            s.minimumMs, s.averageMs, s.maximumMs, s.medianMs, s.jitterMs, s.quality,
-        ]);
+        // Both writes or neither. A run saved without its samples draws an empty
+        // chart, which reads as a quiet network rather than as lost data.
+        this.db.exec('BEGIN');
 
-        const runId = rows[0].id;
-
-        if (result.samples.length === 0)
+        try
         {
-            return runId;
+            const row = this.db.prepare(`
+                INSERT INTO target_runs
+                    (check_id, target_id, sent, received, loss_percent,
+                     minimum_ms, average_ms, maximum_ms, median_ms, jitter_ms, quality)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+            `).get(
+                checkId, targetId, s.sent, s.received, s.lossPercent,
+                s.minimumMs, s.averageMs, s.maximumMs, s.medianMs, s.jitterMs, s.quality,
+            ) as { id: number } | undefined;
+
+            if (row === undefined)
+            {
+                throw new Error('target_runs insert returned no id');
+            }
+
+            this.insertSamples(row.id, result);
+            this.db.exec('COMMIT');
+
+            return row.id;
         }
-
-        // One statement with unnest instead of a loop: five round trips per target
-        // add up once there are ten targets.
-        await this.db.query(`
-            INSERT INTO samples (target_run_id, reachable, latency_ms, error)
-            SELECT $1, * FROM unnest($2::boolean[], $3::double precision[], $4::text[])
-        `,
-        [
-            runId,
-            result.samples.map((v) => v.reachable),
-            result.samples.map((v) => v.latencyMs),
-            result.samples.map((v) => v.error),
-        ]);
-
-        return runId;
+        catch (err)
+        {
+            this.db.exec('ROLLBACK');
+            throw err;
+        }
     }
 
     /** Newest run per target, keeping targets that were never checked. */
-     /** Newest run per target, keeping targets that were never checked. */
-    async latestStatus(): Promise<StatusRow[]>
+    latestStatus(): StatusRow[]
     {
         // Individual samples travel with the summary: five steady replies and four
         // fast ones plus a timeout average out the same but mean different things.
-        const { rows } = await this.db.query<StatusRow>(`
-            SELECT DISTINCT ON (t.id)
-                t.id AS "targetId", t.name, t.host, t.port,
-                r.loss_percent AS "lossPercent",
-                r.average_ms AS "averageMs",
-                r.jitter_ms AS "jitterMs",
-                r.quality,
-                c.started_at AS "checkedAt",
-                COALESCE((
-                    SELECT json_agg(json_build_object('reachable', s.reachable, 'latencyMs', s.latency_ms) ORDER BY s.id)
-                    FROM samples s
-                    WHERE s.target_run_id = r.id
-                ), '[]'::json) AS samples
-            FROM targets t
-            LEFT JOIN target_runs r ON r.target_id = t.id
-            LEFT JOIN checks c ON c.id = r.check_id
-            WHERE t.enabled
-            ORDER BY t.id, c.started_at DESC NULLS LAST
-        `);
+        const rows = this.db.prepare(LATEST_STATUS).all() as unknown as StatusRecord[];
 
-        return rows;
+        return rows.map((row) => ({ ...row, samples: parseSamples(row.samples) }));
     }
+
+    private insertSamples(runId: number, result: TargetResult): void
+    {
+        if (result.samples.length === 0)
+        {
+            return;
+        }
+
+        // One statement with a row per sample instead of a loop: five round trips
+        // per target add up once there are ten targets.
+        const placeholders = result.samples.map(() => '(?, ?, ?, ?)').join(', ');
+        const values = result.samples
+            .flatMap((v) => [runId, v.reachable ? 1 : 0, v.latencyMs, v.error]);
+
+        const sql = `INSERT INTO samples (target_run_id, reachable, latency_ms, error)
+            VALUES ${placeholders}`;
+
+        this.db.prepare(sql).run(...values as never[]);
+    }
+}
+
+/** json_group_array hands back text, and reachable sits inside it as 1 or 0. */
+function parseSamples(value: string | null): SamplePoint[]
+{
+    if (value === null)
+    {
+        return [];
+    }
+
+    const parsed = JSON.parse(value) as { reachable: number; latencyMs: number | null }[];
+
+    return parsed.map((v) => ({ reachable: v.reachable === 1, latencyMs: v.latencyMs }));
 }
