@@ -69,6 +69,26 @@ describe('summarise', () =>
     });
 });
 
+// A single request per stream used to empty its byte budget in well under a second on
+// a fast line, which left nothing to measure once the warmup was dropped. Portions are
+// repeated until the clock runs out, so this shape has to keep working.
+describe('a window shorter than the warmup', () =>
+{
+    it('reports nothing rather than a number from a fraction of a second', () =>
+    {
+        expect(summarise([stream([[100, 15_000_000]], 480)], DEFAULTS.warmupMs)).toBeNull();
+    });
+
+    it('measures the full window once the stream keeps going', () =>
+    {
+        const long = stream([[500, 9_000_000], [2000, 20_000_000], [4800, 20_000_000]], 5020);
+        const rate = summarise([long], DEFAULTS.warmupMs);
+
+        expect(rate?.seconds).toBeCloseTo(3.82, 1);
+        expect(rate?.bytes).toBe(40_000_000);
+    });
+});
+
 describe('share', () =>
 {
     it('splits evenly when it can', () =>

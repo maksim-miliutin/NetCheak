@@ -27,7 +27,12 @@ export const CLOUDFLARE: Source =
     upload: 'https://speed.cloudflare.com/__up',
 };
 
-const BUDGET_BYTES = 25_000_000;
+// One request per stream made the byte budget decide when the run ended: on a fast
+// line it emptied in under two seconds, leaving less than a second of measurement once
+// the warmup was dropped. Requests are asked for in portions and repeated until the
+// clock runs out, so the window is the same length whatever the speed.
+const PORTION_BYTES = 10_000_000;
+
 const UPLOAD_BYTES = 8_000_000;
 
 export async function measureSpeed(source: Source, options: SpeedOptions = {}): Promise<SpeedResult>
@@ -42,12 +47,14 @@ export async function measureSpeed(source: Source, options: SpeedOptions = {}): 
 
 async function pull(source: Source, settings: Required<SpeedOptions>): Promise<Rate | null>
 {
-    const budget = share(BUDGET_BYTES, settings.streams);
+    const portion = Math.max(1, Math.floor(PORTION_BYTES / settings.streams));
 
-    const transfers = await Promise.all(
-        budget.map((bytes) => readStream(source.download(bytes), settings.durationMs)));
+    const streams = Array.from({ length: settings.streams },
+        () => readStream(source, portion, settings.durationMs));
 
-    return summarise(transfers.filter((t): t is Transfer => t !== null), settings.warmupMs);
+    const transfers = (await Promise.all(streams)).filter((t): t is Transfer => t !== null);
+
+    return summarise(transfers, settings.warmupMs);
 }
 
 async function push(url: string, settings: Required<SpeedOptions>): Promise<Rate | null>
@@ -64,8 +71,12 @@ async function push(url: string, settings: Required<SpeedOptions>): Promise<Rate
     return summarise(transfers.filter((t): t is Transfer => t !== null), 0);
 }
 
-/** Reads until the budget runs out or the clock does, noting when each slice landed. */
-async function readStream(url: string, durationMs: number): Promise<Transfer | null>
+/** Keeps asking for portions until the clock runs out, noting when each slice landed. */
+async function readStream(
+    source: Source,
+    portion: number,
+    durationMs: number,
+): Promise<Transfer | null>
 {
     const control = new AbortController();
     const stop = setTimeout(() => control.abort(), durationMs);
@@ -74,16 +85,19 @@ async function readStream(url: string, durationMs: number): Promise<Transfer | n
 
     try
     {
-        const response = await fetch(url, { signal: control.signal });
-
-        if (!response.ok || response.body === null)
+        while (performance.now() - started < durationMs)
         {
-            return null;
-        }
+            const response = await fetch(source.download(portion), { signal: control.signal });
 
-        for await (const piece of response.body)
-        {
-            chunks.push({ at: performance.now() - started, bytes: piece.length });
+            if (!response.ok || response.body === null)
+            {
+                break;
+            }
+
+            for await (const piece of response.body)
+            {
+                chunks.push({ at: performance.now() - started, bytes: piece.length });
+            }
         }
     }
     catch (err)
