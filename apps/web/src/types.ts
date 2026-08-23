@@ -71,6 +71,7 @@ export interface Lookup
 
 export type Agreement =
     | 'agree'
+    | 'sinkholed'
     | 'differ'
     | 'system-fails'
     | 'public-fails'

@@ -11,6 +11,7 @@ export interface Lookup
 
 export type Agreement =
     | 'agree'
+    | 'sinkholed'
     | 'differ'
     | 'system-fails'
     | 'public-fails'
@@ -46,9 +47,28 @@ export async function checkDns(name = PROBE_NAME): Promise<DnsCheck>
     return { name, system: first, reference, agreement: compare(first, reference) };
 }
 
+// A public name that resolves to an address nobody can route to did not come from the
+// site: somebody answered in its place. Unlike a mismatch, this cannot be explained by
+// a content network handing out a nearer edge.
+const UNROUTABLE =
+[
+    /^0\./,
+    /^10\./,
+    /^127\./,
+    /^169\.254\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^192\.168\./,
+];
+
+export function looksSinkholed(addresses: string[]): boolean
+{
+    return addresses.length > 0 && addresses.every((a) => UNROUTABLE.some((r) => r.test(a)));
+}
+
 /**
- * Two resolvers answering differently is the interesting case: the packets travel,
- * the lookup works, and yet the address is not the same one everybody else gets.
+ * Two resolvers answering differently is only a hint: a content network hands out the
+ * nearest edge, so different answers are normal. An address nobody can route to is
+ * not.
  */
 export function compare(system: Lookup | null, reference: Lookup): Agreement
 {
@@ -73,6 +93,11 @@ export function compare(system: Lookup | null, reference: Lookup): Agreement
     if (referenceFailed)
     {
         return 'public-fails';
+    }
+
+    if (looksSinkholed(system.addresses))
+    {
+        return 'sinkholed';
     }
 
     const shared = system.addresses.some((address) => reference.addresses.includes(address));

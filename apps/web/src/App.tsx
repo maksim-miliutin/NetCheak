@@ -95,24 +95,35 @@ export function App()
         }
     };
 
+    const busy = running || measuring || asking;
+
     return (
         <>
+            <header className="masthead">
+                <b>netcheck</b>
+                <span>{status?.targets.length ?? 0} targets watched</span>
+            </header>
+
             {status !== null && <Headline verdict={status.verdict} />}
 
-            <button type="button" onClick={check} disabled={running || measuring}>
-                Check connection
-            </button>
-            <button type="button" onClick={speed} disabled={measuring || running || asking}>
-                Measure speed
-            </button>
-            <button type="button" onClick={lookup} disabled={asking || running || measuring}>
-                Check DNS
-            </button>
+            <div className="actions">
+                <button type="button" onClick={check} disabled={busy}>
+                    Check connection
+                </button>
+                <button type="button" onClick={speed} disabled={busy}>
+                    Measure speed
+                </button>
+                <button type="button" onClick={lookup} disabled={busy}>
+                    Check DNS
+                </button>
+            </div>
 
             {/* The transfer runs for about ten seconds. Without a word about it the
                 page looks stuck, and people click the button again. */}
-            {measuring && <p className="small">Pulling and pushing data, about ten seconds…</p>}
-            {running && <p className="small">Connecting to each target…</p>}
+            {measuring && (
+                <p className="reading small">Pulling and pushing data, about ten seconds…</p>
+            )}
+            {running && <p className="reading small">Connecting to each target…</p>}
 
             {error !== null && <p className="error">{error}</p>}
 
@@ -155,7 +166,7 @@ function Headline({ verdict }: { verdict: Verdict })
     return (
         <>
             <h1>{said.headline}</h1>
-            <p>{said.detail(verdict)}</p>
+            <p className="lead">{said.detail(verdict)}</p>
         </>
     );
 }
@@ -215,13 +226,14 @@ const SAID: Record<Verdict['cause'], { headline: string; detail: (v: Verdict) =>
 function Speed({ speed }: { speed: SpeedRow })
 {
     return (
-        <p className="speed">
-            {speed.downloadMbps ?? '—'} Mbit/s down, {speed.uploadMbps ?? '—'} Mbit/s up
-            <br />
-            <span className="small">
+        <section className="reading">
+            <p className="speed">
+                {speed.downloadMbps ?? '—'} Mbit/s down, {speed.uploadMbps ?? '—'} Mbit/s up
+            </p>
+            <p className="small">
                 measured against {speed.source} over {speed.streams} connections
-            </span>
-        </p>
+            </p>
+        </section>
     );
 }
 
@@ -233,27 +245,29 @@ function Dns({ check }: { check: DnsCheck })
 
     if (system === null)
     {
-        return <p className="small">No system resolver could be read.</p>;
+        return <p className="reading small">No system resolver could be read.</p>;
     }
 
     return (
-        <p>
-            {DNS_SAID[check.agreement]}
-            <br />
-            <span className="small">
+        <section className="reading">
+            <p>{DNS_SAID[check.agreement]}</p>
+            <p className="small">
                 {system.server} said {system.addresses.join(', ') || system.error},
                 {' '}{check.reference.server} said {check.reference.addresses.join(', ')
                     || check.reference.error}
-            </span>
-        </p>
+            </p>
+        </section>
     );
 }
 
 const DNS_SAID: Record<DnsCheck['agreement'], string> =
 {
     'agree': 'Your resolver answers the same as a public one.',
+    'sinkholed': 'Your resolver points this name at an address nobody can route to. '
+        + 'That answer did not come from the site: something is standing in for it.',
     'differ': 'Your resolver returns a different address than a public one does. '
-        + 'Something between you and the name is rewriting the answer.',
+        + 'Often that is just a content network handing out a nearer server, so this '
+        + 'is worth a look rather than a conclusion.',
     'system-fails': 'Your resolver cannot answer, while a public one can. '
         + 'Changing the DNS server would fix this.',
     'public-fails': 'Your resolver answers and the public one does not, which usually '
