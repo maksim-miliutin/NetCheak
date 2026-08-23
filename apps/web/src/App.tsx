@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getStatus, runCheck, runSpeed } from './api';
-import type { SamplePoint, SpeedRow, Status, StatusRow, Verdict } from './types';
+import { getStatus, runCheck, runDns, runSpeed } from './api';
+import type { DnsCheck, SamplePoint, SpeedRow, Status, StatusRow, Verdict } from './types';
 
 export function App()
 {
@@ -8,6 +8,8 @@ export function App()
     const [error, setError] = useState<string | null>(null);
     const [running, setRunning] = useState(false);
     const [measuring, setMeasuring] = useState(false);
+    const [dns, setDns] = useState<DnsCheck | null>(null);
+    const [asking, setAsking] = useState(false);
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
@@ -75,6 +77,24 @@ export function App()
         return <p>Loading…</p>;
     }
 
+    const lookup = async (): Promise<void> =>
+    {
+        setAsking(true);
+
+        try
+        {
+            setDns(await runDns());
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+        finally
+        {
+            setAsking(false);
+        }
+    };
+
     return (
         <>
             {status !== null && <Headline verdict={status.verdict} />}
@@ -82,8 +102,11 @@ export function App()
             <button type="button" onClick={check} disabled={running || measuring}>
                 Check connection
             </button>
-            <button type="button" onClick={speed} disabled={measuring || running}>
+            <button type="button" onClick={speed} disabled={measuring || running || asking}>
                 Measure speed
+            </button>
+            <button type="button" onClick={lookup} disabled={asking || running || measuring}>
+                Check DNS
             </button>
 
             {/* The transfer runs for about ten seconds. Without a word about it the
@@ -94,6 +117,8 @@ export function App()
             {error !== null && <p className="error">{error}</p>}
 
             {status?.speed != null && <Speed speed={status.speed} />}
+
+            {dns !== null && <Dns check={dns} />}
 
             <table>
                 <thead>
@@ -150,8 +175,20 @@ const SAID: Record<Verdict['cause'], { headline: string; detail: (v: Verdict) =>
     'link':
     {
         headline: 'Nothing is reachable',
-        detail: () => 'Even raw addresses stayed silent, so the problem is at your end: '
-            + 'the cable, the router, or the provider.',
+        detail: () => 'Even raw addresses stayed silent, so the problem is at your end. '
+            + 'The router could not be reached to narrow it down further.',
+    },
+    'router':
+    {
+        headline: 'The router is not answering',
+        detail: () => 'Nothing beyond this machine replied, and neither did the gateway. '
+            + 'Check the cable and the router itself before blaming the provider.',
+    },
+    'provider':
+    {
+        headline: 'The line past the router is down',
+        detail: () => 'The router answers, so the cable and the box are fine. Nothing '
+            + 'beyond it replies, which puts the fault with the provider.',
     },
     'dns':
     {
@@ -187,6 +224,43 @@ function Speed({ speed }: { speed: SpeedRow })
         </p>
     );
 }
+
+// Two resolvers asked the same name. Agreement is dull and worth one line; a
+// disagreement is the whole reason the check exists.
+function Dns({ check }: { check: DnsCheck })
+{
+    const system = check.system;
+
+    if (system === null)
+    {
+        return <p className="small">No system resolver could be read.</p>;
+    }
+
+    return (
+        <p>
+            {DNS_SAID[check.agreement]}
+            <br />
+            <span className="small">
+                {system.server} said {system.addresses.join(', ') || system.error},
+                {' '}{check.reference.server} said {check.reference.addresses.join(', ')
+                    || check.reference.error}
+            </span>
+        </p>
+    );
+}
+
+const DNS_SAID: Record<DnsCheck['agreement'], string> =
+{
+    'agree': 'Your resolver answers the same as a public one.',
+    'differ': 'Your resolver returns a different address than a public one does. '
+        + 'Something between you and the name is rewriting the answer.',
+    'system-fails': 'Your resolver cannot answer, while a public one can. '
+        + 'Changing the DNS server would fix this.',
+    'public-fails': 'Your resolver answers and the public one does not, which usually '
+        + 'means the public one is blocked rather than broken.',
+    'both-fail': 'Neither resolver answered, so the name itself may be gone.',
+    'unknown': 'No system resolver could be read.',
+};
 
 function Row({ target, blamed }: { target: StatusRow; blamed: boolean })
 {

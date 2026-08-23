@@ -152,6 +152,15 @@ describe('HTTP API', () =>
         expect(response.statusCode).toBe(200);
     });
 
+    it('answers the dns check with a comparison of two resolvers', async () =>
+    {
+        const response = await app.inject({ method: 'POST', url: '/api/dns' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().name).toBeTruthy();
+        expect(response.json().reference.server).toBe('1.1.1.1');
+    });
+
     it('answers 404 in the same shape as other errors', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });

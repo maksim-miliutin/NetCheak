@@ -7,6 +7,7 @@ import { measureTarget } from '../probe/probe.ts';
 import { judge } from '../verdict/verdict.ts';
 import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
 import { probeRings } from '../route/rings.ts';
+import { checkDns } from '../dns/resolve.ts';
 
 export interface ServerOptions
 {
@@ -138,6 +139,13 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         const rings = await probeRings();
 
         return { verdict: judge(targets, rings), targets, speed: repository.latestSpeed(), rings };
+    });
+
+    // Asking two resolvers the same name is the only way to tell a broken lookup from
+    // one that answers with somebody else's address.
+    app.post('/api/dns', async () =>
+    {
+        return await checkDns();
     });
 
     // The measurement runs against a CDN rather than against this server: a transfer
