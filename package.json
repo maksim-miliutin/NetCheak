@@ -7,9 +7,11 @@
     ],
     "scripts": {
         "test": "npm run test --workspaces --if-present",
-        "typecheck": "npm run typecheck --workspaces --if-present"
+        "typecheck": "npm run typecheck --workspaces --if-present",
+        "build:binary": "node tools/build-binary.mjs"
     },
     "devDependencies": {
+        "esbuild": "^0.28.2",
         "vitest": "^3.2.7"
     }
 }
