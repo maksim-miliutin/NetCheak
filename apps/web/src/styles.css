@@ -1,134 +1,43 @@
 body
 {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 48px 24px 80px;
-    color: #1a1a1a;
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 0 16px;
     font-family: system-ui, sans-serif;
-    line-height: 1.55;
-}
-
-/* Numbers in a table have to line up, and proportional digits do not. */
-td,
-.speed,
-.host
-{
-    font-variant-numeric: tabular-nums;
-}
-
-.masthead
-{
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    padding-bottom: 12px;
-    margin-bottom: 36px;
-    border-bottom: 2px solid #1a1a1a;
-}
-
-.masthead b
-{
-    font-size: 15px;
-    letter-spacing: 0.02em;
-}
-
-.masthead span
-{
-    color: #666;
-    font-size: 13px;
+    line-height: 1.5;
 }
 
 h1
 {
-    max-width: 22ch;
-    margin: 0 0 10px;
-    font-size: 26px;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
+    margin: 0 0 4px;
+    font-size: 22px;
 }
 
 p
 {
-    max-width: 64ch;
-    margin: 0 0 20px;
-}
-
-.lead
-{
-    color: #444;
-    font-size: 16px;
-}
-
-.actions
-{
-    display: flex;
-    gap: 8px;
-    padding: 20px 0;
-    margin-bottom: 4px;
-    border-top: 1px solid #e0e0e0;
-    border-bottom: 1px solid #e0e0e0;
+    margin: 0 0 24px;
+    color: #555;
 }
 
 button
 {
-    padding: 8px 15px;
-    color: #1a1a1a;
+    margin-right: 8px;
+    padding: 6px 12px;
     font: inherit;
-    font-size: 14px;
-    background: #fff;
-    border: 1px solid #bbb;
-    cursor: pointer;
-}
-
-button:hover:not(:disabled)
-{
-    border-color: #1a1a1a;
-}
-
-button:disabled
-{
-    color: #999;
-    border-color: #ddd;
-    cursor: default;
-}
-
-.reading
-{
-    padding: 22px 0;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.reading:last-of-type
-{
-    margin-bottom: 8px;
-}
-
-.reading p
-{
-    margin: 0;
-}
-
-.speed
-{
-    font-size: 20px;
-    letter-spacing: -0.01em;
 }
 
 table
 {
     width: 100%;
-    margin-top: 28px;
+    margin-top: 24px;
     border-collapse: collapse;
 }
 
 th
 {
-    padding-bottom: 10px;
-    color: #666;
-    font-size: 13px;
     font-weight: normal;
     text-align: right;
-    border-bottom: 1px solid #1a1a1a;
+    color: #555;
 }
 
 th:first-child
@@ -138,9 +47,9 @@ th:first-child
 
 td
 {
-    padding: 11px 0;
+    padding: 8px 0;
     text-align: right;
-    border-bottom: 1px solid #ededed;
+    border-top: 1px solid #ddd;
 }
 
 td:first-child
@@ -151,7 +60,7 @@ td:first-child
 .host,
 .small
 {
-    color: #767676;
+    color: #777;
     font-size: 13px;
 }
 
@@ -160,7 +69,7 @@ td:first-child
     display: inline-flex;
     align-items: flex-end;
     gap: 2px;
-    height: 15px;
+    height: 14px;
 }
 
 .bar
@@ -171,13 +80,16 @@ td:first-child
 
 .bar.lost
 {
-    height: 15px;
-    background: #b00;
+    height: 14px;
+    background: #c00;
+}
+
+.speed
+{
+    font-size: 17px;
 }
 
 .error
 {
-    padding: 12px 14px;
-    color: #b00;
-    border: 1px solid #b00;
+    color: #c00;
 }

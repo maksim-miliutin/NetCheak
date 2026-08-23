@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getStatus, runCheck, runDns, runSpeed } from './api';
-import type { DnsCheck, SamplePoint, SpeedRow, Status, StatusRow, Verdict } from './types';
+import { getStatus, runCheck, runSpeed } from './api';
+import type { SamplePoint, SpeedRow, Status, StatusRow, Verdict } from './types';
 
 export function App()
 {
@@ -8,8 +8,6 @@ export function App()
     const [error, setError] = useState<string | null>(null);
     const [running, setRunning] = useState(false);
     const [measuring, setMeasuring] = useState(false);
-    const [dns, setDns] = useState<DnsCheck | null>(null);
-    const [asking, setAsking] = useState(false);
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
@@ -77,59 +75,25 @@ export function App()
         return <p>Loading…</p>;
     }
 
-    const lookup = async (): Promise<void> =>
-    {
-        setAsking(true);
-
-        try
-        {
-            setDns(await runDns());
-        }
-        catch (err)
-        {
-            setError((err as Error).message);
-        }
-        finally
-        {
-            setAsking(false);
-        }
-    };
-
-    const busy = running || measuring || asking;
-
     return (
         <>
-            <header className="masthead">
-                <b>netcheck</b>
-                <span>{status?.targets.length ?? 0} targets watched</span>
-            </header>
-
             {status !== null && <Headline verdict={status.verdict} />}
 
-            <div className="actions">
-                <button type="button" onClick={check} disabled={busy}>
-                    Check connection
-                </button>
-                <button type="button" onClick={speed} disabled={busy}>
-                    Measure speed
-                </button>
-                <button type="button" onClick={lookup} disabled={busy}>
-                    Check DNS
-                </button>
-            </div>
+            <button type="button" onClick={check} disabled={running || measuring}>
+                Check connection
+            </button>
+            <button type="button" onClick={speed} disabled={measuring || running}>
+                Measure speed
+            </button>
 
             {/* The transfer runs for about ten seconds. Without a word about it the
                 page looks stuck, and people click the button again. */}
-            {measuring && (
-                <p className="reading small">Pulling and pushing data, about ten seconds…</p>
-            )}
-            {running && <p className="reading small">Connecting to each target…</p>}
+            {measuring && <p className="small">Pulling and pushing data, about ten seconds…</p>}
+            {running && <p className="small">Connecting to each target…</p>}
 
             {error !== null && <p className="error">{error}</p>}
 
             {status?.speed != null && <Speed speed={status.speed} />}
-
-            {dns !== null && <Dns check={dns} />}
 
             <table>
                 <thead>
@@ -166,7 +130,7 @@ function Headline({ verdict }: { verdict: Verdict })
     return (
         <>
             <h1>{said.headline}</h1>
-            <p className="lead">{said.detail(verdict)}</p>
+            <p>{said.detail(verdict)}</p>
         </>
     );
 }
@@ -186,20 +150,8 @@ const SAID: Record<Verdict['cause'], { headline: string; detail: (v: Verdict) =>
     'link':
     {
         headline: 'Nothing is reachable',
-        detail: () => 'Even raw addresses stayed silent, so the problem is at your end. '
-            + 'The router could not be reached to narrow it down further.',
-    },
-    'router':
-    {
-        headline: 'The router is not answering',
-        detail: () => 'Nothing beyond this machine replied, and neither did the gateway. '
-            + 'Check the cable and the router itself before blaming the provider.',
-    },
-    'provider':
-    {
-        headline: 'The line past the router is down',
-        detail: () => 'The router answers, so the cable and the box are fine. Nothing '
-            + 'beyond it replies, which puts the fault with the provider.',
+        detail: () => 'Even raw addresses stayed silent, so the problem is at your end: '
+            + 'the cable, the router, or the provider.',
     },
     'dns':
     {
@@ -226,55 +178,15 @@ const SAID: Record<Verdict['cause'], { headline: string; detail: (v: Verdict) =>
 function Speed({ speed }: { speed: SpeedRow })
 {
     return (
-        <section className="reading">
-            <p className="speed">
-                {speed.downloadMbps ?? '—'} Mbit/s down, {speed.uploadMbps ?? '—'} Mbit/s up
-            </p>
-            <p className="small">
+        <p className="speed">
+            {speed.downloadMbps ?? '—'} Mbit/s down, {speed.uploadMbps ?? '—'} Mbit/s up
+            <br />
+            <span className="small">
                 measured against {speed.source} over {speed.streams} connections
-            </p>
-        </section>
+            </span>
+        </p>
     );
 }
-
-// Two resolvers asked the same name. Agreement is dull and worth one line; a
-// disagreement is the whole reason the check exists.
-function Dns({ check }: { check: DnsCheck })
-{
-    const system = check.system;
-
-    if (system === null)
-    {
-        return <p className="reading small">No system resolver could be read.</p>;
-    }
-
-    return (
-        <section className="reading">
-            <p>{DNS_SAID[check.agreement]}</p>
-            <p className="small">
-                {system.server} said {system.addresses.join(', ') || system.error},
-                {' '}{check.reference.server} said {check.reference.addresses.join(', ')
-                    || check.reference.error}
-            </p>
-        </section>
-    );
-}
-
-const DNS_SAID: Record<DnsCheck['agreement'], string> =
-{
-    'agree': 'Your resolver answers the same as a public one.',
-    'sinkholed': 'Your resolver points this name at an address nobody can route to. '
-        + 'That answer did not come from the site: something is standing in for it.',
-    'differ': 'Your resolver returns a different address than a public one does. '
-        + 'Often that is just a content network handing out a nearer server, so this '
-        + 'is worth a look rather than a conclusion.',
-    'system-fails': 'Your resolver cannot answer, while a public one can. '
-        + 'Changing the DNS server would fix this.',
-    'public-fails': 'Your resolver answers and the public one does not, which usually '
-        + 'means the public one is blocked rather than broken.',
-    'both-fail': 'Neither resolver answered, so the name itself may be gone.',
-    'unknown': 'No system resolver could be read.',
-};
 
 function Row({ target, blamed }: { target: StatusRow; blamed: boolean })
 {

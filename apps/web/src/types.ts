@@ -20,15 +20,7 @@ export interface StatusRow
 
 export type Level = 'ok' | 'warn' | 'down' | 'unknown';
 
-export type Cause =
-    | 'none'
-    | 'never-checked'
-    | 'link'
-    | 'router'
-    | 'provider'
-    | 'dns'
-    | 'remote'
-    | 'unstable';
+export type Cause = 'none' | 'never-checked' | 'link' | 'dns' | 'remote' | 'unstable';
 
 export interface Verdict
 {
@@ -59,29 +51,4 @@ export interface Health
 {
     status: string;
     database: { reachable: boolean; latencyMs?: number };
-}
-
-export interface Lookup
-{
-    server: string;
-    addresses: string[];
-    ms: number | null;
-    error: string | null;
-}
-
-export type Agreement =
-    | 'agree'
-    | 'sinkholed'
-    | 'differ'
-    | 'system-fails'
-    | 'public-fails'
-    | 'both-fail'
-    | 'unknown';
-
-export interface DnsCheck
-{
-    name: string;
-    system: Lookup | null;
-    reference: Lookup;
-    agreement: Agreement;
 }
