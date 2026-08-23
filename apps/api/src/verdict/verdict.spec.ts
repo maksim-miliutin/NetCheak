@@ -40,14 +40,17 @@ describe('judge', () =>
 
     it('calls the link down when nothing answers at all', () =>
     {
-        const verdict = judge([
+        const verdict = judge(
+        [
             target('Cloudflare DNS', { host: '1.1.1.1', loss: 100 }),
             target('GitHub', { host: 'github.com', loss: 100 }),
         ]);
 
         expect(verdict).toMatchObject({ level: 'down', cause: 'link', reachable: 0 });
     });
-        // Without a look at the nearest hop there is nothing to choose between a dead
+
+    // Addresses answer while names do not: the packets travel, the lookup fails.
+    // Without a look at the nearest hop there is nothing to choose between a dead
     // router and a dead provider, so neither is claimed.
     it('says only that the link is down when the gateway is unknown', () =>
     {
@@ -83,10 +86,11 @@ describe('judge', () =>
 
         expect(verdict.cause).toBe('provider');
     });
-    // Addresses answer while names do not: the packets travel, the lookup fails.
+
     it('blames dns when only the named hosts fail', () =>
     {
-        const verdict = judge([
+        const verdict = judge(
+        [
             target('Cloudflare DNS', { host: '1.1.1.1' }),
             target('Google DNS', { host: '8.8.8.8' }),
             target('Yandex', { host: 'ya.ru', loss: 100 }),
@@ -100,7 +104,8 @@ describe('judge', () =>
     // One address down among healthy ones says nothing about the local network.
     it('blames the far side when a single address fails', () =>
     {
-        const verdict = judge([
+        const verdict = judge(
+        [
             target('Cloudflare DNS', { host: '1.1.1.1' }),
             target('GitHub', { host: 'github.com', loss: 100 }),
             target('Yandex', { host: 'ya.ru' }),
@@ -111,7 +116,8 @@ describe('judge', () =>
 
     it('does not blame dns when an address is among the dead', () =>
     {
-        const verdict = judge([
+        const verdict = judge(
+        [
             target('Cloudflare DNS', { host: '1.1.1.1', loss: 100 }),
             target('GitHub', { host: 'github.com', loss: 100 }),
             target('Yandex', { host: 'ya.ru' }),
@@ -136,7 +142,8 @@ describe('judge', () =>
 
     it('stays quiet when everything is healthy', () =>
     {
-        const verdict = judge([
+        const verdict = judge(
+        [
             target('Cloudflare DNS', { host: '1.1.1.1' }),
             target('Yandex', { host: 'ya.ru' }),
         ]);
@@ -146,7 +153,8 @@ describe('judge', () =>
 
     it('counts only targets that were actually checked', () =>
     {
-        const verdict = judge([
+        const verdict = judge(
+        [
             target('Cloudflare DNS', { host: '1.1.1.1' }),
             target('Never', { quality: null }),
         ]);
