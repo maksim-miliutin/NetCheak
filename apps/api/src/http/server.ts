@@ -6,13 +6,14 @@ import type { ChecksRepository } from '../db/checks.repository.ts';
 import { measureTarget } from '../probe/probe.ts';
 import { judge } from '../verdict/verdict.ts';
 import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
+import { probeRings } from '../route/rings.ts';
 
 export interface ServerOptions
 {
     db: Database;
     repository: ChecksRepository;
     logLevel?: string;
-    corsOrigin?: string;
+    allowedOrigins?: string[];
 }
 
 interface RunBody
@@ -21,10 +22,25 @@ interface RunBody
     timeoutMs?: number;
 }
 
+// The dev server proxies the API, so its origin has to pass. Everything the packaged
+// app serves is same-origin and carries the listening address instead.
+const DEV_ORIGINS =
+[
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+];
+
 function badRequest(message: string): FastifyError
 {
+    return failure(message, 400);
+}
+
+function failure(message: string, statusCode: number): FastifyError
+{
     const err = new Error(message) as FastifyError;
-    err.statusCode = 400;
+    err.statusCode = statusCode;
 
     return err;
 }
@@ -42,7 +58,24 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         genReqId: () => randomUUID(),
     });
 
-    await app.register(cors, { origin: options.corsOrigin ?? true });
+    const allowed = new Set(options.allowedOrigins ?? DEV_ORIGINS);
+
+    await app.register(cors, { origin: [...allowed] });
+
+    // CORS alone is not enough. A cross-site POST with a plain content type skips the
+    // preflight, so the browser only hides the answer while the work still happens:
+    // any page the user has open could make this machine open connections to hosts of
+    // its choosing, or spend the user's traffic on speed runs. The request has to be
+    // refused before it reaches a route.
+    app.addHook('onRequest', async (request) =>
+    {
+        const origin = request.headers.origin;
+
+        if (origin !== undefined && !allowed.has(origin))
+        {
+            throw failure('This API only answers its own interface', 403);
+        }
+    });
 
     app.addHook('onSend', async (request, reply) =>
     {
@@ -100,7 +133,11 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     {
         const targets = repository.latestStatus();
 
-        return { verdict: judge(targets), targets, speed: repository.latestSpeed() };
+        // The nearest hop is cheap to ask about and decides whether a dead internet is
+        // the router's doing or the provider's, so it is read on every status call.
+        const rings = await probeRings();
+
+        return { verdict: judge(targets, rings), targets, speed: repository.latestSpeed(), rings };
     });
 
     // The measurement runs against a CDN rather than against this server: a transfer

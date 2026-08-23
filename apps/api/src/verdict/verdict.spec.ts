@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { judge } from './verdict.ts';
+import type { Rings } from '../route/rings.ts';
 import type { StatusRow } from '../db/checks.repository.ts';
 
 interface Options
@@ -46,7 +47,42 @@ describe('judge', () =>
 
         expect(verdict).toMatchObject({ level: 'down', cause: 'link', reachable: 0 });
     });
+        // Without a look at the nearest hop there is nothing to choose between a dead
+    // router and a dead provider, so neither is claimed.
+    it('says only that the link is down when the gateway is unknown', () =>
+    {
+        const dead = [target('Cloudflare DNS', { host: '1.1.1.1', loss: 100 })];
 
+        expect(judge(dead).cause).toBe('link');
+        expect(judge(dead, { gateway: null, resolvers: [] }).cause).toBe('link');
+    });
+
+    it('blames the router when the gateway itself is silent', () =>
+    {
+        const rings: Rings =
+        {
+            gateway: { host: '192.168.1.1', port: 443, answer: 'silent', latencyMs: null },
+            resolvers: [],
+        };
+
+        const verdict = judge([target('Cloudflare DNS', { host: '1.1.1.1', loss: 100 })], rings);
+
+        expect(verdict.cause).toBe('router');
+    });
+
+    // A refused connection is an answer: the router is there, so the fault is past it.
+    it('blames the provider when the gateway answers but nothing beyond does', () =>
+    {
+        const rings: Rings =
+        {
+            gateway: { host: '192.168.1.1', port: 80, answer: 'refused', latencyMs: 1 },
+            resolvers: [],
+        };
+
+        const verdict = judge([target('Cloudflare DNS', { host: '1.1.1.1', loss: 100 })], rings);
+
+        expect(verdict.cause).toBe('provider');
+    });
     // Addresses answer while names do not: the packets travel, the lookup fails.
     it('blames dns when only the named hosts fail', () =>
     {

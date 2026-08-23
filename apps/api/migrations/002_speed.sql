@@ -1,4 +1,4 @@
-﻿CREATE TABLE IF NOT EXISTS speed_runs (
+CREATE TABLE IF NOT EXISTS speed_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     measured_at TEXT NOT NULL DEFAULT (datetime('now')),
     source TEXT NOT NULL,

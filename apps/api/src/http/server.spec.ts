@@ -119,6 +119,39 @@ describe('HTTP API', () =>
         expect(local.lossPercent).toBe(100);
     });
 
+    // A page the user has open must not be able to spend their traffic or point this
+    // machine at hosts of its choosing.
+    it('refuses a request carrying somebody else\'s origin', async () =>
+    {
+        const response = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/speed',
+            headers: { origin: 'https://evil.example' },
+        });
+
+        expect(response.statusCode).toBe(403);
+    });
+
+    it('lets its own interface through', async () =>
+    {
+        const response = await app.inject(
+        {
+            method: 'GET',
+            url: '/api/status',
+            headers: { origin: 'http://127.0.0.1:5173' },
+        });
+
+        expect(response.statusCode).toBe(200);
+    });
+
+    it('lets a request with no origin through, as a terminal client has none', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/status' });
+
+        expect(response.statusCode).toBe(200);
+    });
+
     it('answers 404 in the same shape as other errors', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });

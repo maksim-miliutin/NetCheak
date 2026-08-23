@@ -46,6 +46,26 @@ export class Database
         return Math.round(performance.now() - started);
     }
 
+    /** Applies a migration that travelled inside the binary rather than on disk. */
+    applyBundled(name: string, sql: string): void
+    {
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        `);
+
+        const seen = this.db.prepare('SELECT version FROM schema_migrations WHERE version = ?');
+
+        if (seen.get(name) !== undefined)
+        {
+            return;
+        }
+
+        this.run(name, sql);
+    }
+
     /** Applies pending migrations in file order, each inside its own transaction. */
     async migrate(directory: string): Promise<MigrationResult>
     {
@@ -74,8 +94,11 @@ export class Database
 
     private async applyMigration(directory: string, file: string): Promise<void>
     {
-        const sql = await readFile(join(directory, file), 'utf8');
+        this.run(file, await readFile(join(directory, file), 'utf8'));
+    }
 
+    private run(file: string, sql: string): void
+    {
         this.db.exec('BEGIN');
 
         try

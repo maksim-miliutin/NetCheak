@@ -1,4 +1,5 @@
 import type { StatusRow } from '../db/checks.repository.ts';
+import type { Rings } from '../route/rings.ts';
 
 export type Level = 'ok' | 'warn' | 'down' | 'unknown';
 
@@ -6,6 +7,8 @@ export type Cause =
     | 'none'
     | 'never-checked'
     | 'link'
+    | 'router'
+    | 'provider'
     | 'dns'
     | 'remote'
     | 'unstable';
@@ -27,7 +30,7 @@ const JITTER_LIMIT = 30;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /** Reads the layer results and names what broke, or says it cannot tell. */
-export function judge(targets: StatusRow[]): Verdict
+export function judge(targets: StatusRow[], rings?: Rings): Verdict
 {
     const checked = targets.filter((t) => t.quality !== null);
 
@@ -49,9 +52,11 @@ export function judge(targets: StatusRow[]): Verdict
 
     if (alive.length === 0)
     {
-        // Every address failed, including the ones that need no name resolved, so
-        // nothing narrower than "the link is down" can be claimed yet.
-        return { ...base, level: 'down', cause: 'link', blame: checked.map((t) => t.name) };
+        // Every address failed, including the ones that need no name resolved. Whether
+        // that is the router or everything past it depends on the nearest hop.
+        const blame = checked.map((t) => t.name);
+
+        return { ...base, level: 'down', cause: nothingWorks(rings), blame };
     }
 
     const deadNames = dead.filter((t) => !IPV4.test(t.host));
@@ -80,4 +85,15 @@ export function judge(targets: StatusRow[]): Verdict
     }
 
     return { ...base, level: 'ok', cause: 'none', blame: [] };
+}
+
+/** With the gateway proven alive, a dead internet is not the router's fault. */
+function nothingWorks(rings: Rings | undefined): Cause
+{
+    if (rings?.gateway == null)
+    {
+        return 'link';
+    }
+
+    return rings.gateway.answer === 'silent' ? 'router' : 'provider';
 }
