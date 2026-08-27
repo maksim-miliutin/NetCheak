@@ -1,5 +1,7 @@
 import type { StatusRow } from '../db/checks.repository.ts';
 import type { Rings } from '../route/rings.ts';
+import type { DnsCheck } from '../dns/resolve.ts';
+import type { TlsCheck } from '../tls/handshake.ts';
 
 export type Level = 'ok' | 'warn' | 'down' | 'unknown';
 
@@ -10,6 +12,9 @@ export type Cause =
     | 'router'
     | 'provider'
     | 'dns'
+    | 'sinkholed'
+    | 'filtered'
+    | 'handshake-cut'
     | 'remote'
     | 'unstable';
 
@@ -30,7 +35,12 @@ const JITTER_LIMIT = 30;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /** Reads the layer results and names what broke, or says it cannot tell. */
-export function judge(targets: StatusRow[], rings?: Rings): Verdict
+export function judge(
+    targets: StatusRow[],
+    rings?: Rings,
+    dns?: DnsCheck,
+    tls?: TlsCheck[],
+): Verdict
 {
     const checked = targets.filter((t) => t.quality !== null);
 
@@ -68,12 +78,24 @@ export function judge(targets: StatusRow[], rings?: Rings): Verdict
     if (dead.length > 0 && deadNames.length === dead.length && liveNames.length === 0
         && alive.some((t) => IPV4.test(t.host)))
     {
-        return { ...base, level: 'down', cause: 'dns', blame: deadNames.map((t) => t.name) };
+        const blame = deadNames.map((t) => t.name);
+
+        return { ...base, level: 'down', cause: nameTrouble(dns), blame };
     }
 
     if (dead.length > 0)
     {
         return { ...base, level: 'warn', cause: 'remote', blame: dead.map((t) => t.name) };
+    }
+
+    // The probe opens a connection and closes it, which a filter reading the requested
+    // name lets through: the cut comes later, during the handshake. Without this the
+    // page would report a healthy line while the sites refuse to open.
+    const cut = (tls ?? []).filter((check) => check.handshake === 'reset');
+
+    if (cut.length > 0)
+    {
+        return { ...base, level: 'warn', cause: 'handshake-cut', blame: cut.map((c) => c.host) };
     }
 
     const shaky = alive.filter((t) =>
@@ -96,4 +118,31 @@ function nothingWorks(rings: Rings | undefined): Cause
     }
 
     return rings.gateway.answer === 'silent' ? 'router' : 'provider';
+}
+
+/**
+ * The pattern says names are the problem. Asking a resolver directly says whether the
+ * lookup itself fails, answers with somebody else's address, or works fine while the
+ * connections still do not.
+ */
+function nameTrouble(dns: DnsCheck | undefined): Cause
+{
+    if (dns === undefined)
+    {
+        return 'dns';
+    }
+
+    if (dns.agreement === 'sinkholed')
+    {
+        return 'sinkholed';
+    }
+
+    // Resolution works and the connections still fail, so the name is found and the
+    // road to it is not. Something is dropping the traffic rather than the lookup.
+    if (dns.agreement === 'agree' || dns.agreement === 'differ')
+    {
+        return 'filtered';
+    }
+
+    return 'dns';
 }
