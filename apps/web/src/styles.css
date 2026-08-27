@@ -1,19 +1,68 @@
-body
+/* The page is read by somebody whose connection is misbehaving, so the state colours
+   the top of it: the answer arrives before the sentence is read. Nothing else on the
+   page is coloured, which is what keeps the band meaning something. */
+:root
 {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 48px 24px 80px;
-    color: #1a1a1a;
-    font-family: system-ui, sans-serif;
-    line-height: 1.55;
+    --ink: #16212c;
+    --ink-soft: #55636f;
+    --ink-faint: #8a949e;
+    --paper: #ffffff;
+    --rule: #e4e8ec;
+
+    --tint: #eef1f4;
+    --accent: #55636f;
 }
 
-/* Numbers in a table have to line up, and proportional digits do not. */
-td,
-.speed,
-.host
+[data-state="ok"]
 {
-    font-variant-numeric: tabular-nums;
+    --tint: #e8f4ee;
+    --accent: #0f7a55;
+}
+
+[data-state="warn"]
+{
+    --tint: #fdf2e2;
+    --accent: #97600a;
+}
+
+[data-state="down"]
+{
+    --tint: #fceceb;
+    --accent: #ad2b23;
+}
+
+*
+{
+    box-sizing: border-box;
+}
+
+body
+{
+    margin: 0;
+    color: var(--ink);
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper);
+}
+
+.band
+{
+    padding: 34px 24px 30px;
+    background: var(--tint);
+    transition: background 240ms ease;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .band
+    {
+        transition: none;
+    }
+}
+
+.inner
+{
+    max-width: 720px;
+    margin: 0 auto;
 }
 
 .masthead
@@ -21,32 +70,50 @@ td,
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    padding-bottom: 12px;
-    margin-bottom: 36px;
-    border-bottom: 2px solid #1a1a1a;
+    margin-bottom: 26px;
 }
 
 .masthead b
 {
-    font-size: 15px;
-    letter-spacing: 0.02em;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .masthead span
 {
-    color: #666;
+    color: var(--ink-soft);
     font-size: 13px;
 }
 
-/* The chain is the one place the page raises its voice: it says where the check got
-   to before it stopped, which is the whole question the tool answers. */
+h1
+{
+    max-width: 20ch;
+    margin: 0 0 12px;
+    color: var(--accent);
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+}
+
+.lead
+{
+    max-width: 58ch;
+    margin: 0 0 26px;
+    color: var(--ink-soft);
+    font-size: 16px;
+}
+
+/* The chain the check walks, drawn as a line that stops where the check stopped. */
 .chain
 {
     display: flex;
     flex-wrap: wrap;
-    gap: 0 4px;
+    gap: 6px 0;
     padding: 0;
-    margin: 0 0 26px;
+    margin: 0;
     list-style: none;
 }
 
@@ -54,18 +121,30 @@ td,
 {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding-right: 4px;
-    color: #999;
-    font-size: 13px;
+    gap: 7px;
+    padding-right: 14px;
+    color: var(--ink-faint);
+    font-size: 12px;
     letter-spacing: 0.01em;
+}
+
+.link::before
+{
+    width: 6px;
+    height: 6px;
+    background: currentcolor;
+    border-radius: 50%;
+    content: "";
 }
 
 .link::after
 {
-    width: 18px;
-    height: 1px;
-    background: #ddd;
+    width: 22px;
+    height: 2px;
+    margin-left: 8px;
+    background: currentcolor;
+    border-radius: 2px;
+    opacity: 0.35;
     content: "";
 }
 
@@ -74,126 +153,123 @@ td,
     display: none;
 }
 
-.link::before
-{
-    width: 9px;
-    height: 9px;
-    border: 1px solid #bbb;
-    border-radius: 50%;
-    content: "";
-}
-
 .passed
 {
-    color: #1a1a1a;
-}
-
-.passed::before
-{
-    background: #1a1a1a;
-    border-color: #1a1a1a;
+    color: var(--accent);
 }
 
 .broken
 {
-    color: #b00;
-    font-weight: 600;
+    color: var(--accent);
+    font-weight: 650;
 }
 
 .broken::before
 {
-    background: #b00;
-    border-color: #b00;
+    width: 9px;
+    height: 9px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .broken::after
 {
-    background: repeating-linear-gradient(90deg, #b00 0 3px, transparent 3px 6px);
+    background: repeating-linear-gradient(90deg,
+        currentcolor 0 3px, transparent 3px 7px);
+    opacity: 0.5;
 }
 
-h1
+.sheet
 {
-    max-width: 22ch;
-    margin: 0 0 10px;
-    font-size: 26px;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
-}
-
-p
-{
-    max-width: 64ch;
-    margin: 0 0 20px;
-}
-
-.lead
-{
-    color: #444;
-    font-size: 16px;
+    max-width: 720px;
+    padding: 0 24px 72px;
+    margin: 0 auto;
 }
 
 .actions
 {
     display: flex;
-    gap: 8px;
-    padding: 20px 0;
-    margin-bottom: 4px;
-    border-top: 1px solid #e0e0e0;
-    border-bottom: 1px solid #e0e0e0;
+    gap: 10px;
+    padding: 22px 0;
 }
 
 button
 {
-    padding: 8px 15px;
-    color: #1a1a1a;
+    padding: 11px 20px;
+    color: var(--ink);
     font: inherit;
     font-size: 14px;
-    background: #fff;
-    border: 1px solid #bbb;
+    background: var(--paper);
+    border: 1px solid #cdd4da;
+    border-radius: 8px;
     cursor: pointer;
-}
-
-/* One action is the one to take when something is wrong; the other costs traffic. */
-.primary
-{
-    color: #fff;
-    background: #1a1a1a;
-    border-color: #1a1a1a;
-}
-
-.primary:hover:not(:disabled)
-{
-    background: #000;
-}
-
-.primary:disabled
-{
-    color: #eee;
-    background: #999;
-    border-color: #999;
+    transition: border-color 120ms ease, background 120ms ease;
 }
 
 button:hover:not(:disabled)
 {
-    border-color: #1a1a1a;
+    background: #f7f9fa;
+    border-color: #aeb8c1;
 }
 
 button:disabled
 {
-    color: #999;
-    border-color: #ddd;
+    color: var(--ink-faint);
     cursor: default;
+}
+
+.primary
+{
+    color: var(--paper);
+    font-weight: 600;
+    background: var(--ink);
+    border-color: var(--ink);
+}
+
+.primary:hover:not(:disabled)
+{
+    background: #0c161f;
+    border-color: #0c161f;
+}
+
+.primary:disabled
+{
+    color: #d6dae0;
+    background: #9aa4ad;
+    border-color: #9aa4ad;
+}
+
+button:focus-visible,
+input:focus-visible
+{
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+}
+
+/* The switch sits with the actions because it is one: leaving the page checking is a
+   choice about what happens next, not a setting hidden away. */
+.repeat
+{
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+    color: var(--ink-soft);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.repeat input
+{
+    width: 16px;
+    height: 16px;
+    accent-color: var(--ink);
+    cursor: pointer;
 }
 
 .reading
 {
-    padding: 22px 0;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.reading:last-of-type
-{
-    margin-bottom: 8px;
+    padding: 20px 0;
+    border-top: 1px solid var(--rule);
 }
 
 .reading p
@@ -203,150 +279,201 @@ button:disabled
 
 .speed
 {
-    font-size: 20px;
-    letter-spacing: -0.01em;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
 }
 
-/* The box sits under the table because a person adds a target after looking at what
-   is already there, not before. */
-.watch
+.rows
+{
+    padding: 0;
+    margin: 26px 0 0;
+    list-style: none;
+}
+
+.row
+{
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 20px;
+    padding: 16px 0;
+    border-top: 1px solid var(--rule);
+}
+
+.name
+{
+    font-size: 16px;
+    font-weight: 550;
+}
+
+.host
+{
+    margin-left: 8px;
+    color: var(--ink-faint);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.numbers
 {
     display: flex;
-    gap: 8px;
-    margin-top: 20px;
+    gap: 18px;
+    align-items: baseline;
+    grid-column: 1 / -1;
+    color: var(--ink-soft);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
 }
 
-.watch input
+.numbers b
 {
-    flex: 1;
-    max-width: 320px;
-    padding: 8px 10px;
-    color: #1a1a1a;
-    font: inherit;
-    font-size: 14px;
-    background: #fff;
-    border: 1px solid #bbb;
+    color: var(--ink);
+    font-weight: 600;
 }
 
-.watch input:focus
+/* One scale across the whole list, drawn on a baseline: a short bar means a fast
+   reply, and a lost attempt is a gap rather than a spike. */
+.bars
 {
-    border-color: #1a1a1a;
-    outline: 2px solid #1a1a1a;
-    outline-offset: 1px;
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 18px;
+    grid-row: 1 / 3;
+    grid-column: 2;
+    align-self: center;
 }
 
-/* Quiet until the row is under the pointer: removing a target is rarely the reason
-   somebody opened this page. */
+.bar
+{
+    width: 5px;
+    background: #97a3ad;
+    border-radius: 2px 2px 0 0;
+}
+
+/* A lost attempt has no latency to draw, so it is a mark on the floor rather than a
+   bar. The line under the row is what the bars stand on. */
+.bar.lost
+{
+    height: 4px;
+    background: #ad2b23;
+    border-radius: 2px;
+}
+
+.bars::after
+{
+    position: absolute;
+    right: 0;
+    bottom: -3px;
+    left: 0;
+    height: 1px;
+    background: var(--rule);
+    content: "";
+}
+
+.bars
+{
+    position: relative;
+}
+
+/* One mark per check kept, oldest on the left: the shape of a line over time rather
+   than at this moment. */
+.past
+{
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    margin-left: 2px;
+}
+
+.tick
+{
+    width: 3px;
+    height: 10px;
+    background: #c9d1d8;
+    border-radius: 1px;
+}
+
+.tick.lossy
+{
+    background: #ad2b23;
+}
+
 .forget
 {
-    padding: 0 0 0 10px;
-    color: #999;
+    padding: 0;
+    margin-left: 10px;
+    color: var(--ink-faint);
     font-size: 12px;
     background: none;
     border: 0;
     opacity: 0;
 }
 
-tr:hover .forget,
-.forget:focus
+.row:hover .forget,
+.forget:focus-visible
 {
     opacity: 1;
 }
 
 .forget:hover
 {
-    color: #b00;
+    color: #ad2b23;
+    background: none;
 }
 
-table
+.watch
 {
-    width: 100%;
-    margin-top: 28px;
-    border-collapse: collapse;
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
 }
 
-th
+.watch input
 {
-    padding-bottom: 10px;
-    color: #666;
-    font-size: 13px;
-    font-weight: normal;
-    text-align: right;
-    border-bottom: 1px solid #1a1a1a;
+    flex: 1;
+    max-width: 320px;
+    padding: 11px 14px;
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    background: var(--paper);
+    border: 1px solid #cdd4da;
+    border-radius: 8px;
 }
 
-th:first-child
-{
-    text-align: left;
-}
-
-td
-{
-    padding: 11px 0;
-    text-align: right;
-    border-bottom: 1px solid #ededed;
-}
-
-td:first-child
-{
-    text-align: left;
-}
-
-.host,
 .small
 {
-    color: #767676;
+    color: var(--ink-faint);
     font-size: 13px;
-}
-
-.bars
-{
-    display: inline-flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 15px;
-}
-
-.bar
-{
-    width: 4px;
-    background: #999;
-}
-
-.bar.lost
-{
-    height: 15px;
-    background: #b00;
 }
 
 .error
 {
-    padding: 12px 14px;
-    color: #b00;
-    border: 1px solid #b00;
+    padding: 14px 16px;
+    margin-top: 20px;
+    color: #8c1f19;
+    background: #fceceb;
+    border-radius: 8px;
 }
 
-/* Five columns do not fit a phone: the numbers wrap and the labels collide. Below
-   this width each target becomes a block and every cell carries its own label. */
-@media (max-width: 560px)
+@media (max-width: 600px)
 {
-    body
+    .band
     {
-        padding: 28px 16px 60px;
+        padding: 22px 18px 24px;
+    }
+
+    .sheet
+    {
+        padding: 0 18px 56px;
     }
 
     h1
     {
-        font-size: 22px;
+        font-size: 26px;
     }
 
-    .actions
-    {
-        flex-wrap: wrap;
-    }
-
-    /* The chain wraps here, and a connector left hanging at the end of a row reads
-       as a mistake. The marks carry the sequence on their own. */
     .link::after
     {
         display: none;
@@ -354,53 +481,47 @@ td:first-child
 
     .link
     {
-        gap: 7px;
-        padding-right: 12px;
+        padding-right: 16px;
     }
 
-    thead
+    .actions
     {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip-path: inset(50%);
+        flex-wrap: wrap;
     }
 
-    tr
+    .repeat
     {
-        display: block;
-        padding: 14px 0;
-        border-bottom: 1px solid #ededed;
+        margin: 4px 0 0;
     }
 
-    td
+    .row
     {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        padding: 2px 0;
-        text-align: right;
-        border: 0;
+        grid-template-columns: 1fr;
     }
 
-    td:first-child
+    .bars
     {
-        display: block;
-        margin-bottom: 6px;
-        font-size: 16px;
+        grid-row: auto;
+        grid-column: 1;
+        align-self: start;
+        order: 2;
+        margin: 2px 0 8px;
     }
 
-    /* No pointer to hover with, so the control has to be there from the start. */
+    /* The baseline belongs under bars that sit beside the numbers; stacked under the
+       name it lands on top of them instead. */
+    .bars::after
+    {
+        display: none;
+    }
+
+    .numbers
+    {
+        order: 3;
+    }
+
     .forget
     {
         opacity: 1;
-    }
-
-    td[data-label]::before
-    {
-        content: attr(data-label);
-        color: #767676;
-        font-size: 13px;
     }
 }

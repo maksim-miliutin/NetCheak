@@ -1,4 +1,4 @@
-import type { DnsCheck, Health, Status, TlsCheck, Verdict } from './types';
+import type { DnsCheck, Health, History, Status, TlsCheck, Verdict } from './types';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T>
 {
@@ -42,6 +42,9 @@ export const watchTarget = (target: string): Promise<unknown> =>
 
 export const forgetTarget = (id: number): Promise<unknown> =>
     request<unknown>(`/targets/${id}`, { method: 'DELETE' });
+
+export const getHistory = (): Promise<{ targets: History[] }> =>
+    request<{ targets: History[] }>('/history');
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
 

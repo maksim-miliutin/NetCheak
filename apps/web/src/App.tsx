@@ -1,9 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
-import { forgetTarget, getStatus, runCheck, runDns, runSpeed, runTls, watchTarget } from './api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import
+{
+    forgetTarget,
+    getHistory,
+    getStatus,
+    runCheck,
+    runDns,
+    runSpeed,
+    runTls,
+    watchTarget,
+} from './api';
+import { EVERY_MS, isDue, nextInSeconds } from './watch';
 import type
 {
     DnsCheck,
     SamplePoint,
+    History,
     SpeedRow,
     Status,
     StatusRow,
@@ -20,13 +32,20 @@ export function App()
     const [tls, setTls] = useState<TlsCheck[] | null>(null);
     const [step, setStep] = useState<string | null>(null);
     const [typed, setTyped] = useState('');
+    const [history, setHistory] = useState<History[]>([]);
+    const [watching, setWatching] = useState(true);
+    const [finishedAt, setFinishedAt] = useState<number | null>(null);
+    const [now, setNow] = useState(() => Date.now());
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
     {
         try
         {
-            setStatus(await getStatus());
+            const [next, past] = await Promise.all([getStatus(), getHistory()]);
+
+            setStatus(next);
+            setHistory(past.targets);
             setError(null);
         }
         catch (err)
@@ -63,6 +82,35 @@ export function App()
             setMeasuring(false);
         }
     };
+
+    // The timer only ticks; whether a run is due is decided by a rule that can be
+    // tested without waiting five minutes for it. The reference is filled in below,
+    // because hooks have to be declared before the early return and the handler is
+    // written after it.
+    const latest = useRef<(() => Promise<void>) | null>(null);
+
+    useEffect(() =>
+    {
+        const tick = setInterval(() => setNow(Date.now()), 1000);
+
+        return () => clearInterval(tick);
+    }, []);
+
+    useEffect(() =>
+    {
+        const due = isDue(
+        {
+            sinceMs: finishedAt === null ? null : now - finishedAt,
+            busy: step !== null || measuring,
+            hidden: document.hidden,
+            enabled: watching,
+        });
+
+        if (due && finishedAt !== null && latest.current !== null)
+        {
+            void latest.current();
+        }
+    }, [now, finishedAt, step, measuring, watching]);
 
     if (!loaded)
     {
@@ -102,8 +150,12 @@ export function App()
         finally
         {
             setStep(null);
+            setFinishedAt(Date.now());
         }
     };
+
+    latest.current = runAll;
+
 
     const watch = async (): Promise<void> =>
     {
@@ -135,15 +187,20 @@ export function App()
     const busy = measuring || step !== null;
 
     return (
-        <>
-            <header className="masthead">
-                <b>netcheck</b>
-                <span>{status?.targets[0]?.checkedAt ?? 'not checked yet'}</span>
-            </header>
+        <div data-state={status?.verdict.level ?? 'unknown'}>
+            <div className="band">
+                <div className="inner">
+                    <header className="masthead">
+                        <b>netcheck</b>
+                        <span>{status?.targets[0]?.checkedAt ?? 'not checked yet'}</span>
+                    </header>
 
-            {status !== null && <Chain cause={status.verdict.cause} />}
+                    {status !== null && <Headline verdict={status.verdict} />}
+                    {status !== null && <Chain cause={status.verdict.cause} />}
+                </div>
+            </div>
 
-            {status !== null && <Headline verdict={status.verdict} />}
+            <main className="sheet">
 
             <div className="actions">
                 <button type="button" className="primary" onClick={runAll} disabled={busy}>
@@ -155,7 +212,22 @@ export function App()
                 <button type="button" onClick={speed} disabled={busy}>
                     Measure speed
                 </button>
+
+                <label className="repeat">
+                    <input
+                        type="checkbox"
+                        checked={watching}
+                        onChange={(event) => setWatching(event.target.checked)}
+                    />
+                    Keep checking
+                </label>
             </div>
+
+            {watching && step === null && finishedAt !== null && (
+                <p className="small">
+                    Next check in {nextInSeconds(now - finishedAt, EVERY_MS)}s
+                </p>
+            )}
 
             {step !== null && <p className="reading small">{step}…</p>}
 
@@ -173,27 +245,17 @@ export function App()
 
             {tls !== null && <Tls checks={tls} />}
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Target</th>
-                        <th>Loss</th>
-                        <th>Average</th>
-                        <th>Jitter</th>
-                        <th>Attempts</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <ul className="rows">
                     {(status?.targets ?? []).map((target) => (
                         <Row
                             key={target.targetId}
                             target={target}
-                            blamed={status?.verdict.blame.includes(target.name) ?? false}
+                            slowest={slowest(status?.targets ?? [])}
+                            past={history.find((h) => h.targetId === target.targetId) ?? null}
                             forget={forget}
                         />
                     ))}
-                </tbody>
-            </table>
+            </ul>
 
             <div className="watch">
                 <input
@@ -207,7 +269,8 @@ export function App()
                     Watch
                 </button>
             </div>
-        </>
+            </main>
+        </div>
     );
 }
 
@@ -447,17 +510,19 @@ function describe(check: TlsCheck): string
     return `signed by ${check.certificate.issuer}, ${named}, valid to ${check.certificate.validTo}`;
 }
 
-function Row({ target, blamed, forget }:
+function Row({ target, slowest, past, forget }:
 {
     target: StatusRow;
-    blamed: boolean;
+    slowest: number;
+    past: History | null;
     forget: (id: number) => void;
 })
 {
     return (
-        <tr>
-            <td>
-                {target.name} <span className="host">{target.host}</span>
+        <li className="row">
+            <span className="name">
+                {target.name}
+                <span className="host">{target.host}</span>
                 <button
                     type="button"
                     className="forget"
@@ -466,47 +531,79 @@ function Row({ target, blamed, forget }:
                 >
                     remove
                 </button>
-            </td>
-            <td data-label="Loss">{format(target.lossPercent, '%')}</td>
-            <td data-label="Average">{format(target.averageMs, ' ms')}</td>
-            <td data-label="Jitter">{format(target.jitterMs, ' ms')}</td>
-            <td data-label="Attempts">
-                <Attempts samples={target.samples} />
-            </td>
-        </tr>
+            </span>
+
+            <Attempts samples={target.samples} slowest={slowest} />
+
+            <span className="numbers">
+                <span>loss <b>{format(target.lossPercent, '%')}</b></span>
+                <span>average <b>{format(target.averageMs, ' ms')}</b></span>
+                <span>jitter <b>{format(target.jitterMs, ' ms')}</b></span>
+                {past !== null && past.runs.length > 1 && <Past history={past} />}
+            </span>
+        </li>
     );
 }
 
-// Five steady replies and four fast ones plus a timeout share an average, so every
-// attempt is drawn instead.
-function Attempts({ samples }: { samples: SamplePoint[] })
+/**
+ * One mark per check kept, oldest on the left. A line that answers now and dropped an
+ * hour ago reads the same as a healthy one until the past is drawn beside it.
+ */
+function Past({ history }: { history: History })
+{
+    const { runs, lossyRuns } = history;
+
+    const told = `${lossyRuns} of the last ${runs.length} checks lost packets`;
+
+    return (
+        <span className="past" title={told}>
+            {runs.map((run, index) => (
+                <i key={index} className={run.lossPercent > 0 ? 'tick lossy' : 'tick'} />
+            ))}
+        </span>
+    );
+}
+
+function Attempts({ samples, slowest }: { samples: SamplePoint[]; slowest: number })
 {
     if (samples.length === 0)
     {
         return <span className="host">—</span>;
     }
 
-    const slowest = Math.max(...samples.map((s) => s.latencyMs ?? 0), 1);
-
     return (
         <span className="bars">
-            {samples.map((sample, index) => (
-                <i
-                    key={index}
-                    className={sample.reachable ? 'bar' : 'bar lost'}
-                    style={{ height: barHeight(sample, slowest) }}
-                    title={sample.reachable ? `${sample.latencyMs} ms` : 'no answer'}
-                />
-            ))}
+            {samples.map((sample, index) => sample.reachable
+                ? (
+                    <i
+                        key={index}
+                        className="bar"
+                        style={{ height: barHeight(sample.latencyMs, slowest) }}
+                        title={`${Math.round(sample.latencyMs ?? 0)} ms`}
+                    />
+                )
+                : <i key={index} className="bar lost" title="no answer" />)}
         </span>
     );
 }
 
-function barHeight(sample: SamplePoint, slowest: number): string
+/**
+ * The tallest bar is the slowest reply in the table, so rows can be compared. The
+ * scale is logarithmic: latency spans two orders of magnitude on an ordinary line,
+ * and drawn straight a 12 ms reply beside a 300 ms one is a dot beside a tower.
+ */
+function barHeight(latencyMs: number | null, slowest: number): string
 {
-    const share = (sample.latencyMs ?? slowest) / slowest;
+    const share = Math.log10(1 + (latencyMs ?? 0)) / Math.log10(1 + slowest);
 
-    return `${Math.max(3, share * 16)}px`;
+    return `${Math.max(3, Math.round(share * 16))}px`;
+}
+
+function slowest(targets: StatusRow[]): number
+{
+    const times = targets.flatMap((t) => t.samples.map((s) => s.latencyMs ?? 0));
+
+    return Math.max(...times, 1);
 }
 
 function list(names: string[]): string

@@ -109,3 +109,18 @@ export interface TlsCheck
     certificate: Certificate | null;
     error: string | null;
 }
+
+export interface Run
+{
+    checkedAt: string;
+    lossPercent: number;
+    averageMs: number | null;
+}
+
+export interface History
+{
+    targetId: number;
+    name: string;
+    runs: Run[];
+    lossyRuns: number;
+}
