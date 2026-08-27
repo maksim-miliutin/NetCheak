@@ -112,7 +112,15 @@ export function App()
 
         try
         {
-            setTls((await runTls()).checks);
+            const result = await runTls();
+
+            setTls(result.checks);
+
+            // A cut handshake never shows up in the loss figures, so the headline has
+            // to be replaced rather than left saying the line is fine.
+            setStatus((current) => current === null
+                ? current
+                : { ...current, verdict: result.verdict });
         }
         catch (err)
         {
@@ -130,8 +138,10 @@ export function App()
         <>
             <header className="masthead">
                 <b>netcheck</b>
-                <span>{status?.targets.length ?? 0} targets watched</span>
+                <span>{status?.targets[0]?.checkedAt ?? 'not checked yet'}</span>
             </header>
+
+            {status !== null && <Chain cause={status.verdict.cause} />}
 
             {status !== null && <Headline verdict={status.verdict} />}
 
@@ -186,9 +196,64 @@ export function App()
                 </tbody>
             </table>
 
-            <p className="small">Last checked: {status?.targets[0]?.checkedAt ?? 'never'}</p>
         </>
     );
+}
+
+// The tool follows a chain: this machine, the router, the line past it, the names,
+// then the connections themselves. Every verdict is a statement about where that
+// chain stops, so the chain is drawn and the break marked on it.
+const CHAIN = ['This machine', 'Router', 'Provider', 'Names', 'Connections'] as const;
+
+type Link = (typeof CHAIN)[number];
+
+const BREAKS: Record<Verdict['cause'], Link | null> =
+{
+    'none': null,
+    'never-checked': null,
+    'link': 'Router',
+    'router': 'Router',
+    'provider': 'Provider',
+    'dns': 'Names',
+    'sinkholed': 'Names',
+    'filtered': 'Connections',
+    'handshake-cut': 'Connections',
+    'remote': null,
+    'unstable': null,
+};
+
+function Chain({ cause }: { cause: Verdict['cause'] })
+{
+    const broken = BREAKS[cause];
+    const stops = broken === null ? CHAIN.length : CHAIN.indexOf(broken);
+
+    return (
+        <ol className="chain" aria-label="where the check reached">
+            {CHAIN.map((link, index) => (
+                <li
+                    key={link}
+                    className={state(index, stops, cause)}
+                >
+                    {link}
+                </li>
+            ))}
+        </ol>
+    );
+}
+
+function state(index: number, stops: number, cause: Verdict['cause']): string
+{
+    if (cause === 'never-checked')
+    {
+        return 'link untested';
+    }
+
+    if (index < stops)
+    {
+        return 'link passed';
+    }
+
+    return index === stops ? 'link broken' : 'link untested';
 }
 
 // The point of the tool is the sentence, not the table: the table is the evidence
@@ -254,6 +319,13 @@ const SAID: Record<Verdict['cause'], { headline: string; detail: (v: Verdict) =>
         detail: (v) => `${list(v.blame)} are found by the resolver, so the lookup is `
             + 'fine. The connection itself is what fails, which means changing DNS '
             + 'would not help.',
+    },
+    'handshake-cut':
+    {
+        headline: 'The connection opens and is cut',
+        detail: (v) => `${list(v.blame)} accept a connection and then sever it during `
+            + 'the handshake. Nothing is lost on the way, which is why the numbers '
+            + 'below look healthy.',
     },
     'remote':
     {

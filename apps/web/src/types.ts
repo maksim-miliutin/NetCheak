@@ -29,6 +29,7 @@ export type Cause =
     | 'dns'
     | 'sinkholed'
     | 'filtered'
+    | 'handshake-cut'
     | 'remote'
     | 'unstable';
 

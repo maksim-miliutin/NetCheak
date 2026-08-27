@@ -38,6 +38,79 @@ td,
     font-size: 13px;
 }
 
+/* The chain is the one place the page raises its voice: it says where the check got
+   to before it stopped, which is the whole question the tool answers. */
+.chain
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 4px;
+    padding: 0;
+    margin: 0 0 26px;
+    list-style: none;
+}
+
+.link
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 4px;
+    color: #999;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+}
+
+.link::after
+{
+    width: 18px;
+    height: 1px;
+    background: #ddd;
+    content: "";
+}
+
+.link:last-child::after
+{
+    display: none;
+}
+
+.link::before
+{
+    width: 9px;
+    height: 9px;
+    border: 1px solid #bbb;
+    border-radius: 50%;
+    content: "";
+}
+
+.passed
+{
+    color: #1a1a1a;
+}
+
+.passed::before
+{
+    background: #1a1a1a;
+    border-color: #1a1a1a;
+}
+
+.broken
+{
+    color: #b00;
+    font-weight: 600;
+}
+
+.broken::before
+{
+    background: #b00;
+    border-color: #b00;
+}
+
+.broken::after
+{
+    background: repeating-linear-gradient(90deg, #b00 0 3px, transparent 3px 6px);
+}
+
 h1
 {
     max-width: 22ch;
@@ -199,6 +272,19 @@ td:first-child
     .actions
     {
         flex-wrap: wrap;
+    }
+
+    /* The chain wraps here, and a connector left hanging at the end of a row reads
+       as a mistake. The marks carry the sequence on their own. */
+    .link::after
+    {
+        display: none;
+    }
+
+    .link
+    {
+        gap: 7px;
+        padding-right: 12px;
     }
 
     thead

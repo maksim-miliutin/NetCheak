@@ -1,4 +1,4 @@
-import type { DnsCheck, Health, Status, TlsCheck } from './types';
+import type { DnsCheck, Health, Status, TlsCheck, Verdict } from './types';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T>
 {
@@ -24,8 +24,13 @@ export const getStatus = (): Promise<Status> => request<Status>('/status');
 export const runDns = (): Promise<DnsCheck> =>
     request<DnsCheck>('/dns', { method: 'POST' });
 
-export const runTls = (): Promise<{ checks: TlsCheck[] }> =>
-    request<{ checks: TlsCheck[] }>('/tls', { method: 'POST' });
+export interface TlsResult
+{
+    checks: TlsCheck[];
+    verdict: Verdict;
+}
+
+export const runTls = (): Promise<TlsResult> => request<TlsResult>('/tls', { method: 'POST' });
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
 

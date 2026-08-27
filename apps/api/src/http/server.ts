@@ -153,10 +153,14 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // that matches and an issuer nobody expected is what interception looks like.
     app.post('/api/tls', async () =>
     {
-        const targets = repository.listTargets()
+        const named = repository.listTargets()
             .filter((t) => t.enabled && !/^\d{1,3}(\.\d{1,3}){3}$/.test(t.host));
 
-        return { checks: await Promise.all(targets.map((t) => inspectTls(t.host, t.port))) };
+        const checks = await Promise.all(named.map((t) => inspectTls(t.host, t.port)));
+
+        // The verdict is recomputed here so a cut handshake reaches the headline: the
+        // probe sees no loss when the connection opens and is severed afterwards.
+        return { checks, verdict: judge(repository.latestStatus(), undefined, undefined, checks) };
     });
 
     // The measurement runs against a CDN rather than against this server: a transfer
