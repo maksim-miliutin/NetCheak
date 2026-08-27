@@ -26,6 +26,27 @@ export interface SpeedRow
     streams: number;
 }
 
+export interface Run
+{
+    checkedAt: string;
+    lossPercent: number;
+    averageMs: number | null;
+}
+
+export interface History
+{
+    targetId: number;
+    name: string;
+    runs: Run[];
+    lossyRuns: number;
+}
+
+interface HistoryRecord extends Run
+{
+    targetId: number;
+    name: string;
+}
+
 export interface StatusRow
 {
     targetId: number;
@@ -226,6 +247,57 @@ export class ChecksRepository
         `).get() as SpeedRow | undefined;
 
         return row ?? null;
+    }
+
+    /**
+     * Recent runs for every watched target, newest last. A line that drops for a
+     * minute every evening looks perfect in the latest check and obvious here.
+     */
+    history(limit = 20): History[]
+    {
+        const rows = this.db.prepare(`
+            WITH ranked AS (
+                SELECT
+                    r.target_id, r.loss_percent, r.average_ms, c.started_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY r.target_id ORDER BY c.started_at DESC, r.id DESC
+                    ) AS place
+                FROM target_runs r
+                JOIN checks c ON c.id = r.check_id
+            )
+            SELECT
+                t.id AS targetId, t.name,
+                l.started_at AS checkedAt,
+                l.loss_percent AS lossPercent,
+                l.average_ms AS averageMs
+            FROM targets t
+            JOIN ranked l ON l.target_id = t.id AND l.place <= ?
+            WHERE t.enabled = 1
+            ORDER BY t.id, l.place DESC
+        `).all(limit) as unknown as HistoryRecord[];
+
+        const byTarget = new Map<number, History>();
+
+        for (const row of rows)
+        {
+            const found = byTarget.get(row.targetId)
+                ?? { targetId: row.targetId, name: row.name, runs: [], lossyRuns: 0 };
+
+            found.runs.push({
+                checkedAt: row.checkedAt,
+                lossPercent: row.lossPercent,
+                averageMs: row.averageMs,
+            });
+
+            if (row.lossPercent > 0)
+            {
+                found.lossyRuns += 1;
+            }
+
+            byTarget.set(row.targetId, found);
+        }
+
+        return [...byTarget.values()];
     }
 
     private insertSamples(runId: number, result: TargetResult): void

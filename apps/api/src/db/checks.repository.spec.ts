@@ -115,6 +115,61 @@ describe('ChecksRepository', () =>
         expect(repository.removeTarget(9999)).toBe(false);
     });
 
+    // A line that drops for a minute every evening looks perfect in the latest check.
+    it('keeps every run, not only the last one', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        for (const samples of [[ok(10)], [failed()], [ok(12)]])
+        {
+            repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor(samples));
+        }
+
+        const history = repository.history().find((v) => v.targetId === target.id);
+
+        expect(history?.runs).toHaveLength(3);
+        expect(history?.lossyRuns).toBe(1);
+    });
+
+    it('hands the runs back oldest first, so a strip reads left to right', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([failed()]));
+        repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(10)]));
+
+        const history = repository.history().find((v) => v.targetId === target.id);
+
+        expect(history?.runs.map((r) => r.lossPercent)).toEqual([100, 0]);
+    });
+
+    it('keeps only as many runs as asked for', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        for (let i = 0; i < 5; i += 1)
+        {
+            repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(10)]));
+        }
+
+        expect(repository.history(2).find((v) => v.targetId === target.id)?.runs).toHaveLength(2);
+    });
+
+    it('says nothing about a target that was never checked', () =>
+    {
+        expect(repository.history()).toEqual([]);
+    });
+
+    it('leaves out a target that was retired', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(10)]));
+        repository.removeTarget(target.id);
+
+        expect(repository.history().some((v) => v.targetId === target.id)).toBe(false);
+    });
+
     it('stores a run together with its samples', async () =>
     {
         const target = only(repository.listTargets(), 'target');
