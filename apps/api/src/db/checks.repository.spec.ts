@@ -71,6 +71,50 @@ describe('ChecksRepository', () =>
         expect(only(targets, 'target')).toMatchObject({ port: 443, enabled: true });
     });
 
+    it('adds a target and hands it back', () =>
+    {
+        const added = repository.addTarget('Mine', 'my.example', 8443);
+
+        expect(added).toMatchObject({ host: 'my.example', port: 8443, enabled: true });
+        expect(repository.listTargets()).toHaveLength(5);
+    });
+
+    // The same host and port twice is the same target, not a second row.
+    it('returns the existing target rather than adding it twice', () =>
+    {
+        const first = repository.addTarget('Mine', 'my.example', 443);
+        const again = repository.addTarget('Mine again', 'my.example', 443);
+
+        expect(again.id).toBe(first.id);
+        expect(repository.listTargets()).toHaveLength(5);
+    });
+
+    it('brings a retired target back rather than adding a second one', () =>
+    {
+        const added = repository.addTarget('Mine', 'my.example', 443);
+
+        repository.removeTarget(added.id);
+        expect(repository.addTarget('Mine', 'my.example', 443).enabled).toBe(true);
+    });
+
+    // The runs are the history of a line, so retiring a target must not erase them.
+    it('keeps the measurements of a target that was removed', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+        const checkId = repository.createCheck(1, 2000);
+
+        repository.saveResult(checkId, target.id, resultFor([ok(10)]));
+        repository.removeTarget(target.id);
+
+        expect(count(db, 'target_runs')).toBe(1);
+        expect(repository.latestStatus().some((v) => v.targetId === target.id)).toBe(false);
+    });
+
+    it('says nothing was removed when the id is unknown', () =>
+    {
+        expect(repository.removeTarget(9999)).toBe(false);
+    });
+
     it('stores a run together with its samples', async () =>
     {
         const target = only(repository.listTargets(), 'target');

@@ -104,6 +104,36 @@ export class ChecksRepository
         return rows.map((row) => ({ ...row, enabled: row.enabled === 1 }));
     }
 
+    /** Adds a target, or returns the one already watching that host and port. */
+    addTarget(name: string, host: string, port: number): TargetRow
+    {
+        this.db.prepare(`
+            INSERT INTO targets (name, host, port) VALUES (?, ?, ?)
+            ON CONFLICT (host, port) DO UPDATE SET enabled = 1
+        `).run(name, host, port);
+
+        const found = 'SELECT id, name, host, port, enabled FROM targets WHERE host = ? AND port = ?';
+        const row = this.db.prepare(found).get(host, port) as TargetRecord | undefined;
+
+        if (row === undefined)
+        {
+            throw new Error('target insert returned nothing');
+        }
+
+        return { ...row, enabled: row.enabled === 1 };
+    }
+
+    /**
+     * Rows are kept rather than deleted: their runs are the history of a line, and a
+     * target removed today should not erase what it measured last week.
+     */
+    removeTarget(id: number): boolean
+    {
+        const changed = this.db.prepare('UPDATE targets SET enabled = 0 WHERE id = ?').run(id);
+
+        return changed.changes > 0;
+    }
+
     createCheck(attempts: number, timeoutMs: number): number
     {
         const row = this.db
