@@ -9,6 +9,7 @@ import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
 import { probeRings } from '../route/rings.ts';
 import { checkDns } from '../dns/resolve.ts';
 import { inspectTls } from '../tls/handshake.ts';
+import { parseTarget } from '../targets/address.ts';
 
 export interface ServerOptions
 {
@@ -33,6 +34,16 @@ const DEV_ORIGINS =
     'http://localhost:3001',
     'http://127.0.0.1:3001',
 ];
+
+// The box takes what a person has to hand, so a refusal has to say which part of it
+// was the problem rather than that the whole thing was wrong.
+const REFUSALS: Record<string, string> =
+{
+    'empty': 'Type an address to watch',
+    'bad-port': 'The port has to be a whole number between 1 and 65535',
+    'bad-host': 'That does not look like a host name or an address',
+    'too-long': 'That name is longer than a name is allowed to be',
+};
 
 function badRequest(message: string): FastifyError
 {
@@ -130,6 +141,32 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     });
 
     app.get('/api/targets', async () => ({ targets: repository.listTargets() }));
+
+    app.post<{ Body: { target?: string } }>('/api/targets', async (request) =>
+    {
+        const parsed = parseTarget(request.body?.target ?? '');
+
+        if (!parsed.ok)
+        {
+            throw badRequest(REFUSALS[parsed.refusal]);
+        }
+
+        const { host, port } = parsed.address;
+
+        return { target: repository.addTarget(host, host, port) };
+    });
+
+    app.delete<{ Params: { id: string } }>('/api/targets/:id', async (request, reply) =>
+    {
+        const id = Number.parseInt(request.params.id, 10);
+
+        if (!Number.isInteger(id) || !repository.removeTarget(id))
+        {
+            throw failure('No target with that id', 404);
+        }
+
+        return reply.code(204).send();
+    });
 
     app.get('/api/status', async () =>
     {

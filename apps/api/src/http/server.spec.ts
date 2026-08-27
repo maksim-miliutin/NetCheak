@@ -175,6 +175,55 @@ describe('HTTP API', () =>
         expect(response.json().checks).toEqual([]);
     });
 
+    it('takes an address a person pasted and watches it', async () =>
+    {
+        const response = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/targets',
+            payload: { target: 'https://my.example/news' },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().target).toMatchObject({ host: 'my.example', port: 443 });
+    });
+
+    it.each(
+    [
+        ['nothing at all', ''],
+        ['a word with no dot', 'router'],
+        ['an impossible port', 'my.example:70000'],
+    ])('refuses %s and says why', async (_label, target) =>
+    {
+        const url = '/api/targets';
+        const response = await app.inject({ method: 'POST', url, payload: { target } });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.message).toBeTruthy();
+    });
+
+    it('retires a target', async () =>
+    {
+        const added = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/targets',
+            payload: { target: 'my.example' },
+        });
+
+        const id = added.json().target.id;
+        const removed = await app.inject({ method: 'DELETE', url: `/api/targets/${id}` });
+
+        expect(removed.statusCode).toBe(204);
+    });
+
+    it('answers 404 for a target that is not there', async () =>
+    {
+        const response = await app.inject({ method: 'DELETE', url: '/api/targets/9999' });
+
+        expect(response.statusCode).toBe(404);
+    });
+
     it('answers 404 in the same shape as other errors', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });
