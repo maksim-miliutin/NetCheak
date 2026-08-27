@@ -2,5 +2,5 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig(
 {
-    test: { include: ['apps/api/src/**/*.spec.ts'] },
+    test: { include: ['apps/*/src/**/*.spec.ts'] },
 });

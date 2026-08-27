@@ -8,9 +8,9 @@
         "start": "node --experimental-strip-types src/main.ts"
     },
     "devDependencies": {
-        "@types/node": "^22.10.2",
-        "typescript": "^5.7.2",
-        "vitest": "^3.2.7"
+        "@types/node": "^24.9.2",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.11"
     },
     "dependencies": {
         "@fastify/cors": "^11.3.0",
