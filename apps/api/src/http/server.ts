@@ -6,7 +6,7 @@ import type { ChecksRepository } from '../db/checks.repository.ts';
 import { measureTarget } from '../probe/probe.ts';
 import { judge } from '../verdict/verdict.ts';
 import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
-import { probeRings } from '../route/rings.ts';
+import { probeRings, type Rings } from '../route/rings.ts';
 import { checkDns } from '../dns/resolve.ts';
 import { inspectTls } from '../tls/handshake.ts';
 import { parseTarget } from '../targets/address.ts';
@@ -60,6 +60,11 @@ function failure(message: string, statusCode: number): FastifyError
 
 export async function buildServer(options: ServerOptions): Promise<FastifyInstance>
 {
+    // Probing the gateway takes about a second and a half, and reading the page must
+    // not wait for it. The nearest hop is looked at while the checks run, and what it
+    // said is kept until the next run replaces it.
+    let rings: Rings | null = null;
+
     const { db, repository } = options;
 
     const app = Fastify(
@@ -142,6 +147,10 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
     app.get('/api/targets', async () => ({ targets: repository.listTargets() }));
 
+    // Every run has been stored since the first version and nothing read more than the
+    // last one, which left the hardest case — a line that drops now and then — invisible.
+    app.get('/api/history', async () => ({ targets: repository.history() }));
+
     app.post<{ Body: { target?: string } }>('/api/targets', async (request) =>
     {
         const parsed = parseTarget(request.body?.target ?? '');
@@ -172,11 +181,12 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     {
         const targets = repository.latestStatus();
 
-        // The nearest hop is cheap to ask about and decides whether a dead internet is
-        // the router's doing or the provider's, so it is read on every status call.
-        const rings = await probeRings();
-
-        return { verdict: judge(targets, rings), targets, speed: repository.latestSpeed(), rings };
+        return {
+            verdict: judge(targets, rings ?? undefined),
+            targets,
+            speed: repository.latestSpeed(),
+            rings,
+        };
     });
 
     // Asking two resolvers the same name is the only way to tell a broken lookup from
@@ -231,13 +241,20 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         const checkId = repository.createCheck(attempts, timeoutMs);
 
         // Targets run in parallel: ten of them at five attempts with a three second
-        // timeout would take two and a half minutes in sequence.
-        const measured = await Promise.all(targets.map(async (t) =>
-        ({
-            id: t.id,
-            result: await measureTarget({ name: t.name, host: t.host, port: t.port },
-                { attempts, timeoutMs }),
-        })));
+        // timeout would take two and a half minutes in sequence. The nearest hop is
+        // asked alongside them, since it decides how a total silence is read.
+        const [measured, hop] = await Promise.all(
+        [
+            Promise.all(targets.map(async (t) =>
+            ({
+                id: t.id,
+                result: await measureTarget({ name: t.name, host: t.host, port: t.port },
+                    { attempts, timeoutMs }),
+            }))),
+            probeRings(),
+        ]);
+
+        rings = hop;
 
         for (const { id, result } of measured)
         {

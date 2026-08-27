@@ -59,6 +59,26 @@ describe('HTTP API', () =>
         expect(response.json().speed).toBeNull();
     });
 
+    // Reading the page waited a second and a half for the gateway probe. The nearest
+    // hop belongs to running a check, not to reading what a check found.
+    it('knows nothing of the nearest hop until a check has run', async () =>
+    {
+        const before = await app.inject({ method: 'GET', url: '/api/status' });
+
+        expect(before.json().rings).toBeNull();
+
+        await app.inject(
+        {
+            method: 'POST',
+            url: '/api/checks',
+            payload: { attempts: 1, timeoutMs: 300 },
+        });
+
+        const after = await app.inject({ method: 'GET', url: '/api/status' });
+
+        expect(after.json().rings).not.toBeNull();
+    });
+
     it('answers status with a verdict beside the rows', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/status' });
@@ -222,6 +242,21 @@ describe('HTTP API', () =>
         const response = await app.inject({ method: 'DELETE', url: '/api/targets/9999' });
 
         expect(response.statusCode).toBe(404);
+    });
+
+    it('answers with the runs it has kept', async () =>
+    {
+        await app.inject(
+        {
+            method: 'POST',
+            url: '/api/checks',
+            payload: { attempts: 1, timeoutMs: 300 },
+        });
+
+        const response = await app.inject({ method: 'GET', url: '/api/history' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().targets[0].runs).toHaveLength(1);
     });
 
     it('answers 404 in the same shape as other errors', async () =>
