@@ -284,21 +284,7 @@ input:focus-visible
     letter-spacing: -0.02em;
 }
 
-.rows
-{
-    padding: 0;
-    margin: 26px 0 0;
-    list-style: none;
-}
 
-.row
-{
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 4px 20px;
-    padding: 16px 0;
-    border-top: 1px solid var(--rule);
-}
 
 .name
 {
@@ -319,7 +305,7 @@ input:focus-visible
     display: flex;
     gap: 18px;
     align-items: baseline;
-    grid-column: 1 / -1;
+    margin-top: 8px;
     color: var(--ink-soft);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
@@ -331,73 +317,19 @@ input:focus-visible
     font-weight: 600;
 }
 
-/* One scale across the whole list, drawn on a baseline: a short bar means a fast
-   reply, and a lost attempt is a gap rather than a spike. */
-.bars
-{
-    display: inline-flex;
-    align-items: flex-end;
-    gap: 3px;
-    height: 18px;
-    grid-row: 1 / 3;
-    grid-column: 2;
-    align-self: center;
-}
 
-.bar
-{
-    width: 5px;
-    background: #97a3ad;
-    border-radius: 2px 2px 0 0;
-}
 
 /* A lost attempt has no latency to draw, so it is a mark on the floor rather than a
    bar. The line under the row is what the bars stand on. */
-.bar.lost
-{
-    height: 4px;
-    background: #ad2b23;
-    border-radius: 2px;
-}
 
-.bars::after
-{
-    position: absolute;
-    right: 0;
-    bottom: -3px;
-    left: 0;
-    height: 1px;
-    background: var(--rule);
-    content: "";
-}
 
 .bars
 {
     position: relative;
 }
 
-/* One mark per check kept, oldest on the left: the shape of a line over time rather
-   than at this moment. */
-.past
-{
-    display: inline-flex;
-    gap: 2px;
-    align-items: center;
-    margin-left: 2px;
-}
 
-.tick
-{
-    width: 3px;
-    height: 10px;
-    background: #c9d1d8;
-    border-radius: 1px;
-}
 
-.tick.lossy
-{
-    background: #ad2b23;
-}
 
 .forget
 {
@@ -523,5 +455,84 @@ input:focus-visible
     .forget
     {
         opacity: 1;
+    }
+}
+
+/* The sheet is a paper trace: one lane per target, ruled like the roll a recording
+   instrument runs on, with the line drawn across it as the checks come in. */
+.lanes
+{
+    padding: 0;
+    margin: 26px 0 0;
+    list-style: none;
+}
+
+.lane
+{
+    padding: 14px 0 10px;
+    border-top: 1px solid var(--rule);
+}
+
+.label
+{
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 6px;
+}
+
+.trace
+{
+    display: block;
+    width: 100%;
+    height: 44px;
+    background:
+        repeating-linear-gradient(90deg,
+            transparent 0 calc(100% / 12 - 1px),
+            #eceff2 calc(100% / 12 - 1px) calc(100% / 12));
+    border-bottom: 1px solid #d7dde2;
+}
+
+.ink
+{
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+/* A run that came back with nothing has no height to draw, so the loss is a stroke
+   through the lane rather than a point on the line. */
+.gap
+{
+    stroke: #ad2b23;
+    stroke-width: 2;
+    stroke-dasharray: 3 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.kept
+{
+    margin-left: auto;
+    color: var(--ink-faint);
+}
+
+@media (max-width: 600px)
+{
+    .trace
+    {
+        height: 38px;
+    }
+
+    .numbers
+    {
+        flex-wrap: wrap;
+        gap: 6px 14px;
+    }
+
+    .kept
+    {
+        margin-left: 0;
     }
 }

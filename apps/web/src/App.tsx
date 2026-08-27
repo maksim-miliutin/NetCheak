@@ -11,10 +11,10 @@ import
     watchTarget,
 } from './api';
 import { EVERY_MS, isDue, nextInSeconds } from './watch';
+import { ceilingOf, plot } from './trace';
 import type
 {
     DnsCheck,
-    SamplePoint,
     History,
     SpeedRow,
     Status,
@@ -245,12 +245,11 @@ export function App()
 
             {tls !== null && <Tls checks={tls} />}
 
-            <ul className="rows">
+            <ul className="lanes">
                     {(status?.targets ?? []).map((target) => (
-                        <Row
+                        <Lane
                             key={target.targetId}
                             target={target}
-                            slowest={slowest(status?.targets ?? [])}
                             past={history.find((h) => h.targetId === target.targetId) ?? null}
                             forget={forget}
                         />
@@ -510,19 +509,31 @@ function describe(check: TlsCheck): string
     return `signed by ${check.certificate.issuer}, ${named}, valid to ${check.certificate.validTo}`;
 }
 
-function Row({ target, slowest, past, forget }:
+const LANE_WIDTH = 640;
+const LANE_HEIGHT = 40;
+
+/**
+ * A lane per target, its history drawn as a trace across the sheet. The tool has been
+ * sampling over time since the first version; showing a moment instead of the run of
+ * it threw most of what it knows away.
+ */
+function Lane({ target, past, forget }:
 {
     target: StatusRow;
-    slowest: number;
     past: History | null;
     forget: (id: number) => void;
 })
 {
+    const runs = past?.runs ?? [];
+    const { line, gaps } = plot(runs, ceilingOf(runs), LANE_WIDTH, LANE_HEIGHT);
+
     return (
-        <li className="row">
-            <span className="name">
-                {target.name}
-                <span className="host">{target.host}</span>
+        <li className="lane">
+            <div className="label">
+                <span className="name">
+                    {target.name}
+                    <span className="host">{target.host}</span>
+                </span>
                 <button
                     type="button"
                     className="forget"
@@ -531,80 +542,34 @@ function Row({ target, slowest, past, forget }:
                 >
                     remove
                 </button>
-            </span>
+            </div>
 
-            <Attempts samples={target.samples} slowest={slowest} />
+            <svg
+                className="trace"
+                viewBox={`0 0 ${LANE_WIDTH} ${LANE_HEIGHT}`}
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`${target.name}: ${runs.length} checks kept`}
+            >
+                {line !== '' && <polyline className="ink" points={line} />}
 
-            <span className="numbers">
+                {gaps.map((x, index) => (
+                    <line key={index} className="gap" x1={x} y1="0" x2={x} y2={LANE_HEIGHT} />
+                ))}
+            </svg>
+
+            <div className="numbers">
                 <span>loss <b>{format(target.lossPercent, '%')}</b></span>
                 <span>average <b>{format(target.averageMs, ' ms')}</b></span>
                 <span>jitter <b>{format(target.jitterMs, ' ms')}</b></span>
-                {past !== null && past.runs.length > 1 && <Past history={past} />}
-            </span>
+                {runs.length > 0 && <span className="kept">{runs.length} checks kept</span>}
+            </div>
         </li>
     );
 }
 
-/**
- * One mark per check kept, oldest on the left. A line that answers now and dropped an
- * hour ago reads the same as a healthy one until the past is drawn beside it.
- */
-function Past({ history }: { history: History })
-{
-    const { runs, lossyRuns } = history;
 
-    const told = `${lossyRuns} of the last ${runs.length} checks lost packets`;
 
-    return (
-        <span className="past" title={told}>
-            {runs.map((run, index) => (
-                <i key={index} className={run.lossPercent > 0 ? 'tick lossy' : 'tick'} />
-            ))}
-        </span>
-    );
-}
-
-function Attempts({ samples, slowest }: { samples: SamplePoint[]; slowest: number })
-{
-    if (samples.length === 0)
-    {
-        return <span className="host">—</span>;
-    }
-
-    return (
-        <span className="bars">
-            {samples.map((sample, index) => sample.reachable
-                ? (
-                    <i
-                        key={index}
-                        className="bar"
-                        style={{ height: barHeight(sample.latencyMs, slowest) }}
-                        title={`${Math.round(sample.latencyMs ?? 0)} ms`}
-                    />
-                )
-                : <i key={index} className="bar lost" title="no answer" />)}
-        </span>
-    );
-}
-
-/**
- * The tallest bar is the slowest reply in the table, so rows can be compared. The
- * scale is logarithmic: latency spans two orders of magnitude on an ordinary line,
- * and drawn straight a 12 ms reply beside a 300 ms one is a dot beside a tower.
- */
-function barHeight(latencyMs: number | null, slowest: number): string
-{
-    const share = Math.log10(1 + (latencyMs ?? 0)) / Math.log10(1 + slowest);
-
-    return `${Math.max(3, Math.round(share * 16))}px`;
-}
-
-function slowest(targets: StatusRow[]): number
-{
-    const times = targets.flatMap((t) => t.samples.map((s) => s.latencyMs ?? 0));
-
-    return Math.max(...times, 1);
-}
 
 function list(names: string[]): string
 {
