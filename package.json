@@ -6,8 +6,10 @@
         "apps/*"
     ],
     "scripts": {
-        "test": "npm run test --workspaces --if-present",
-        "typecheck": "npm run typecheck --workspaces --if-present",
+        "dev:api": "npm run dev --workspace @netcheck/api",
+        "dev:web": "npm run dev --workspace @netcheck/web",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit -p apps/api",
         "build:binary": "node tools/build-binary.mjs"
     },
     "devDependencies": {
