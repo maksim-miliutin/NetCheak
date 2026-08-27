@@ -153,6 +153,26 @@ button
     cursor: pointer;
 }
 
+/* One action is the one to take when something is wrong; the other costs traffic. */
+.primary
+{
+    color: #fff;
+    background: #1a1a1a;
+    border-color: #1a1a1a;
+}
+
+.primary:hover:not(:disabled)
+{
+    background: #000;
+}
+
+.primary:disabled
+{
+    color: #eee;
+    background: #999;
+    border-color: #999;
+}
+
 button:hover:not(:disabled)
 {
     border-color: #1a1a1a;

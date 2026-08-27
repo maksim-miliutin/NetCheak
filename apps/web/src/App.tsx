@@ -15,12 +15,10 @@ export function App()
 {
     const [status, setStatus] = useState<Status | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [running, setRunning] = useState(false);
     const [measuring, setMeasuring] = useState(false);
     const [dns, setDns] = useState<DnsCheck | null>(null);
-    const [asking, setAsking] = useState(false);
     const [tls, setTls] = useState<TlsCheck[] | null>(null);
-    const [shaking, setShaking] = useState(false);
+    const [step, setStep] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
@@ -45,24 +43,6 @@ export function App()
         void load();
     }, [load]);
 
-    const check = async (): Promise<void> =>
-    {
-        setRunning(true);
-
-        try
-        {
-            await runCheck();
-            await load();
-        }
-        catch (err)
-        {
-            setError((err as Error).message);
-        }
-        finally
-        {
-            setRunning(false);
-        }
-    };
 
     const speed = async (): Promise<void> =>
     {
@@ -88,39 +68,31 @@ export function App()
         return <p>Loading…</p>;
     }
 
-    const lookup = async (): Promise<void> =>
-    {
-        setAsking(true);
 
+
+    // Somebody whose page will not open should not have to guess which check answers
+    // that. One button walks the chain in the order the traffic does.
+    const runAll = async (): Promise<void> =>
+    {
         try
         {
+            setStep('Connecting to each target');
+            await runCheck();
+
+            setStep('Asking two resolvers the same name');
             setDns(await runDns());
-        }
-        catch (err)
-        {
-            setError((err as Error).message);
-        }
-        finally
-        {
-            setAsking(false);
-        }
-    };
 
-    const certificates = async (): Promise<void> =>
-    {
-        setShaking(true);
+            setStep('Reading certificates');
 
-        try
-        {
             const result = await runTls();
 
             setTls(result.checks);
-
-            // A cut handshake never shows up in the loss figures, so the headline has
-            // to be replaced rather than left saying the line is fine.
+            await load();
             setStatus((current) => current === null
                 ? current
                 : { ...current, verdict: result.verdict });
+
+            setError(null);
         }
         catch (err)
         {
@@ -128,11 +100,11 @@ export function App()
         }
         finally
         {
-            setShaking(false);
+            setStep(null);
         }
     };
 
-    const busy = running || measuring || asking || shaking;
+    const busy = measuring || step !== null;
 
     return (
         <>
@@ -146,26 +118,24 @@ export function App()
             {status !== null && <Headline verdict={status.verdict} />}
 
             <div className="actions">
-                <button type="button" onClick={check} disabled={busy}>
-                    Check connection
+                <button type="button" className="primary" onClick={runAll} disabled={busy}>
+                    Run the checks
                 </button>
+
+                {/* Speed stands apart: it takes ten seconds and spends real traffic,
+                    which is not something to do on every visit. */}
                 <button type="button" onClick={speed} disabled={busy}>
                     Measure speed
                 </button>
-                <button type="button" onClick={lookup} disabled={busy}>
-                    Check DNS
-                </button>
-                <button type="button" onClick={certificates} disabled={busy}>
-                    Check certificates
-                </button>
             </div>
+
+            {step !== null && <p className="reading small">{step}…</p>}
 
             {/* The transfer runs for about ten seconds. Without a word about it the
                 page looks stuck, and people click the button again. */}
             {measuring && (
                 <p className="reading small">Pulling and pushing data, about ten seconds…</p>
             )}
-            {running && <p className="reading small">Connecting to each target…</p>}
 
             {error !== null && <p className="error">{error}</p>}
 
