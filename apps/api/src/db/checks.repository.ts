@@ -133,7 +133,8 @@ export class ChecksRepository
             ON CONFLICT (host, port) DO UPDATE SET enabled = 1
         `).run(name, host, port);
 
-        const found = 'SELECT id, name, host, port, enabled FROM targets WHERE host = ? AND port = ?';
+        const found = `SELECT id, name, host, port, enabled
+            FROM targets WHERE host = ? AND port = ?`;
         const row = this.db.prepare(found).get(host, port) as TargetRecord | undefined;
 
         if (row === undefined)

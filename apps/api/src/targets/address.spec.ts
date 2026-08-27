@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { looksLikeHost, parseTarget } from './address.ts';
+import { isAddress, looksLikeHost, parseTarget } from './address.ts';
 
 function address(input: string)
 {
@@ -64,9 +64,34 @@ describe('parseTarget', () =>
             expect(address(host)).toBe('bad-host');
         });
 
+    // Digits and dots and nothing else is somebody typing an address, not a name.
     it('refuses an address with a part over 255', () =>
     {
         expect(address('1.1.1.256')).toBe('bad-host');
+        expect(address('999.999.999.999')).toBe('bad-host');
+    });
+
+    it('takes an address of the sixth version', () =>
+    {
+        expect(address('2001:db8::1')).toEqual({ host: '2001:db8::1', port: 443 });
+        expect(address('::1')).toEqual({ host: '::1', port: 443 });
+    });
+
+    // Written out with a port it is bracketed, and that is the only colon that splits.
+    it('takes a bracketed address with a port', () =>
+    {
+        expect(address('[2001:db8::1]:8443')).toEqual({ host: '2001:db8::1', port: 8443 });
+    });
+
+    it('takes a bracketed address without a port', () =>
+    {
+        expect(address('[2001:db8::1]')).toEqual({ host: '2001:db8::1', port: 443 });
+    });
+
+    it('takes a pasted address of the sixth version', () =>
+    {
+        expect(address('https://[2001:db8::1]:8443/news'))
+            .toEqual({ host: '2001:db8::1', port: 8443 });
     });
 
     it('refuses a name longer than a name may be', () =>
@@ -102,4 +127,19 @@ describe('looksLikeHost', () =>
     {
         expect(looksLikeHost('example..com')).toBe(false);
     });
+});
+
+describe('isAddress', () =>
+{
+    it.each([['1.1.1.1'], ['2001:db8::1'], ['::1'], ['::ffff:1.2.3.4']])(
+        'reads %s as an address', (host) =>
+        {
+            expect(isAddress(host)).toBe(true);
+        });
+
+    it.each([['example.com'], ['1.1.1.256'], ['router'], ['']])(
+        'does not read %s as an address', (host) =>
+        {
+            expect(isAddress(host)).toBe(false);
+        });
 });

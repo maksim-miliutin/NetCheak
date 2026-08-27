@@ -58,6 +58,13 @@ const UNROUTABLE =
     /^169\.254\./,
     /^172\.(1[6-9]|2\d|3[01])\./,
     /^192\.168\./,
+
+    // The sixth version has its own: the unspecified address, loopback, the private
+    // range and the link-local one.
+    /^::$/,
+    /^::1$/,
+    /^f[cd][0-9a-f]{2}:/i,
+    /^fe[89ab][0-9a-f]:/i,
 ];
 
 export function looksSinkholed(addresses: string[]): boolean

@@ -83,6 +83,27 @@ describe('looksSinkholed', () =>
             expect(looksSinkholed([address])).toBe(true);
         });
 
+    it.each([['::'], ['::1'], ['fd00::1'], ['fc00::5'], ['fe80::1']])(
+        'reads %s as an address nobody can route to', (address) =>
+        {
+            expect(looksSinkholed([address])).toBe(true);
+        });
+
+    // The link-local range is fe80::/10, so it runs to febf and fea0 sits inside it.
+    it('reads every part of the link-local range', () =>
+    {
+        expect(looksSinkholed(['fe80::1'])).toBe(true);
+        expect(looksSinkholed(['fea0::1'])).toBe(true);
+        expect(looksSinkholed(['febf::1'])).toBe(true);
+        expect(looksSinkholed(['fec0::1'])).toBe(false);
+    });
+
+    it.each([['2001:db8::1'], ['2606:4700::1111']])(
+        'leaves %s alone', (address) =>
+        {
+            expect(looksSinkholed([address])).toBe(false);
+        });
+
     it.each([['93.184.216.34'], ['1.1.1.1'], ['172.15.0.1'], ['172.32.0.1']])(
         'leaves %s alone', (address) =>
         {

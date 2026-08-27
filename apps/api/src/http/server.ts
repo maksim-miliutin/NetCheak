@@ -9,7 +9,7 @@ import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
 import { probeRings, type Rings } from '../route/rings.ts';
 import { checkDns } from '../dns/resolve.ts';
 import { inspectTls } from '../tls/handshake.ts';
-import { parseTarget } from '../targets/address.ts';
+import { isAddress, parseTarget } from '../targets/address.ts';
 
 export interface ServerOptions
 {
@@ -201,7 +201,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     app.post('/api/tls', async () =>
     {
         const named = repository.listTargets()
-            .filter((t) => t.enabled && !/^\d{1,3}(\.\d{1,3}){3}$/.test(t.host));
+            .filter((t) => t.enabled && !isAddress(t.host));
 
         const checks = await Promise.all(named.map((t) => inspectTls(t.host, t.port)));
 

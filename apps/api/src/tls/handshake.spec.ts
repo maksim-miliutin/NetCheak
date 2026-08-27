@@ -42,7 +42,8 @@ describe('certificateNames', () =>
 
     it('strips the DNS prefix off the alternates', () =>
     {
-        const names = certificateNames(certificate('example.com', 'DNS:example.com, DNS:*.example.com'));
+        const alternates = 'DNS:example.com, DNS:*.example.com';
+        const names = certificateNames(certificate('example.com', alternates));
 
         expect(names).toEqual(['example.com', '*.example.com']);
     });

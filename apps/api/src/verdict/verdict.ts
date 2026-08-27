@@ -2,6 +2,7 @@ import type { StatusRow } from '../db/checks.repository.ts';
 import type { Rings } from '../route/rings.ts';
 import type { DnsCheck } from '../dns/resolve.ts';
 import type { TlsCheck } from '../tls/handshake.ts';
+import { isAddress } from '../targets/address.ts';
 
 export type Level = 'ok' | 'warn' | 'down' | 'unknown';
 
@@ -31,8 +32,6 @@ export interface Verdict
 
 const LOSS_LIMIT = 20;
 const JITTER_LIMIT = 30;
-
-const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /** Reads the layer results and names what broke, or says it cannot tell. */
 export function judge(
@@ -69,14 +68,14 @@ export function judge(
         return { ...base, level: 'down', cause: nothingWorks(rings), blame };
     }
 
-    const deadNames = dead.filter((t) => !IPV4.test(t.host));
-    const liveNames = alive.filter((t) => !IPV4.test(t.host));
+    const deadNames = dead.filter((t) => !isAddress(t.host));
+    const liveNames = alive.filter((t) => !isAddress(t.host));
 
     // Raw addresses answer while no name does: the packets travel and the lookup is
     // what fails. One working name is enough to clear resolution of the charge, so a
     // single dead host is somebody else's outage instead.
     if (dead.length > 0 && deadNames.length === dead.length && liveNames.length === 0
-        && alive.some((t) => IPV4.test(t.host)))
+        && alive.some((t) => isAddress(t.host)))
     {
         const blame = deadNames.map((t) => t.name);
 

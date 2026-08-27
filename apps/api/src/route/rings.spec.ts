@@ -27,6 +27,14 @@ describe('parseGateway', () =>
         expect(parseGateway('linux', LINUX_ROUTE)).toBe('10.0.0.1');
     });
 
+    // A machine with both families has a default route in each.
+    it('reads a gateway of the sixth version', () =>
+    {
+        const route = 'default via fe80::1 dev eth0 proto ra metric 1024';
+
+        expect(parseGateway('linux', route)).toBe('fe80::1');
+    });
+
     it('says nothing when there is no default route', () =>
     {
         expect(parseGateway('linux', '10.0.0.0/24 dev eth0 scope link')).toBeNull();

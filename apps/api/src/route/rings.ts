@@ -77,7 +77,9 @@ export function parseGateway(platform: string, output: string): string | null
         return null;
     }
 
-    const match = /default via (\d{1,3}(?:\.\d{1,3}){3})/.exec(output);
+    // Either family may be the default route, and on a machine with both the fourth
+    // is the one whose failure a person notices first.
+    const match = /default via ([0-9a-f.:]+)/i.exec(output);
 
     return match === null ? null : (match[1] ?? null);
 }
