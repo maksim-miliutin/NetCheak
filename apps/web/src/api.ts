@@ -32,6 +32,17 @@ export interface TlsResult
 
 export const runTls = (): Promise<TlsResult> => request<TlsResult>('/tls', { method: 'POST' });
 
+export const watchTarget = (target: string): Promise<unknown> =>
+    request<unknown>('/targets',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+    });
+
+export const forgetTarget = (id: number): Promise<unknown> =>
+    request<unknown>(`/targets/${id}`, { method: 'DELETE' });
+
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
 
 export const runCheck = (): Promise<{ checkId: number }> =>

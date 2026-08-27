@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getStatus, runCheck, runDns, runSpeed, runTls } from './api';
+import { forgetTarget, getStatus, runCheck, runDns, runSpeed, runTls, watchTarget } from './api';
 import type
 {
     DnsCheck,
@@ -19,6 +19,7 @@ export function App()
     const [dns, setDns] = useState<DnsCheck | null>(null);
     const [tls, setTls] = useState<TlsCheck[] | null>(null);
     const [step, setStep] = useState<string | null>(null);
+    const [typed, setTyped] = useState('');
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
@@ -104,6 +105,33 @@ export function App()
         }
     };
 
+    const watch = async (): Promise<void> =>
+    {
+        try
+        {
+            await watchTarget(typed);
+            setTyped('');
+            await load();
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+    };
+
+    const forget = async (id: number): Promise<void> =>
+    {
+        try
+        {
+            await forgetTarget(id);
+            await load();
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+    };
+
     const busy = measuring || step !== null;
 
     return (
@@ -161,11 +189,24 @@ export function App()
                             key={target.targetId}
                             target={target}
                             blamed={status?.verdict.blame.includes(target.name) ?? false}
+                            forget={forget}
                         />
                     ))}
                 </tbody>
             </table>
 
+            <div className="watch">
+                <input
+                    value={typed}
+                    onChange={(event) => setTyped(event.target.value)}
+                    onKeyDown={(event) => event.key === 'Enter' && void watch()}
+                    placeholder="Watch another address"
+                    aria-label="Address to watch"
+                />
+                <button type="button" onClick={watch} disabled={typed.trim() === ''}>
+                    Watch
+                </button>
+            </div>
         </>
     );
 }
@@ -406,12 +447,25 @@ function describe(check: TlsCheck): string
     return `signed by ${check.certificate.issuer}, ${named}, valid to ${check.certificate.validTo}`;
 }
 
-function Row({ target, blamed }: { target: StatusRow; blamed: boolean })
+function Row({ target, blamed, forget }:
+{
+    target: StatusRow;
+    blamed: boolean;
+    forget: (id: number) => void;
+})
 {
     return (
         <tr>
             <td>
                 {target.name} <span className="host">{target.host}</span>
+                <button
+                    type="button"
+                    className="forget"
+                    onClick={() => forget(target.targetId)}
+                    aria-label={`Stop watching ${target.name}`}
+                >
+                    remove
+                </button>
             </td>
             <td data-label="Loss">{format(target.lossPercent, '%')}</td>
             <td data-label="Average">{format(target.averageMs, ' ms')}</td>

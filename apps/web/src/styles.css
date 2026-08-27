@@ -207,6 +207,57 @@ button:disabled
     letter-spacing: -0.01em;
 }
 
+/* The box sits under the table because a person adds a target after looking at what
+   is already there, not before. */
+.watch
+{
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.watch input
+{
+    flex: 1;
+    max-width: 320px;
+    padding: 8px 10px;
+    color: #1a1a1a;
+    font: inherit;
+    font-size: 14px;
+    background: #fff;
+    border: 1px solid #bbb;
+}
+
+.watch input:focus
+{
+    border-color: #1a1a1a;
+    outline: 2px solid #1a1a1a;
+    outline-offset: 1px;
+}
+
+/* Quiet until the row is under the pointer: removing a target is rarely the reason
+   somebody opened this page. */
+.forget
+{
+    padding: 0 0 0 10px;
+    color: #999;
+    font-size: 12px;
+    background: none;
+    border: 0;
+    opacity: 0;
+}
+
+tr:hover .forget,
+.forget:focus
+{
+    opacity: 1;
+}
+
+.forget:hover
+{
+    color: #b00;
+}
+
 table
 {
     width: 100%;
@@ -338,6 +389,12 @@ td:first-child
         display: block;
         margin-bottom: 6px;
         font-size: 16px;
+    }
+
+    /* No pointer to hover with, so the control has to be there from the start. */
+    .forget
+    {
+        opacity: 1;
     }
 
     td[data-label]::before
