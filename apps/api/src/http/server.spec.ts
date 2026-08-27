@@ -161,6 +161,20 @@ describe('HTTP API', () =>
         expect(response.json().reference.server).toBe('1.1.1.1');
     });
 
+    // Raw addresses have no name to present, so a certificate check on them would
+    // always look like a mismatch.
+    it('checks certificates only for targets that have a name', async () =>
+    {
+        db.exec('UPDATE targets SET enabled = 0');
+        db.prepare('INSERT INTO targets (name, host, port) VALUES (?, ?, ?)')
+            .run('numeric', '198.51.100.7', 443);
+
+        const response = await app.inject({ method: 'POST', url: '/api/tls' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().checks).toEqual([]);
+    });
+
     it('answers 404 in the same shape as other errors', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });

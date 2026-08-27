@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getStatus, runCheck, runDns, runSpeed } from './api';
-import type { DnsCheck, SamplePoint, SpeedRow, Status, StatusRow, Verdict } from './types';
+import { getStatus, runCheck, runDns, runSpeed, runTls } from './api';
+import type
+{
+    DnsCheck,
+    SamplePoint,
+    SpeedRow,
+    Status,
+    StatusRow,
+    TlsCheck,
+    Verdict,
+} from './types';
 
 export function App()
 {
@@ -10,6 +19,8 @@ export function App()
     const [measuring, setMeasuring] = useState(false);
     const [dns, setDns] = useState<DnsCheck | null>(null);
     const [asking, setAsking] = useState(false);
+    const [tls, setTls] = useState<TlsCheck[] | null>(null);
+    const [shaking, setShaking] = useState(false);
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
@@ -95,7 +106,25 @@ export function App()
         }
     };
 
-    const busy = running || measuring || asking;
+    const certificates = async (): Promise<void> =>
+    {
+        setShaking(true);
+
+        try
+        {
+            setTls((await runTls()).checks);
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+        finally
+        {
+            setShaking(false);
+        }
+    };
+
+    const busy = running || measuring || asking || shaking;
 
     return (
         <>
@@ -116,6 +145,9 @@ export function App()
                 <button type="button" onClick={lookup} disabled={busy}>
                     Check DNS
                 </button>
+                <button type="button" onClick={certificates} disabled={busy}>
+                    Check certificates
+                </button>
             </div>
 
             {/* The transfer runs for about ten seconds. Without a word about it the
@@ -130,6 +162,8 @@ export function App()
             {status?.speed != null && <Speed speed={status.speed} />}
 
             {dns !== null && <Dns check={dns} />}
+
+            {tls !== null && <Tls checks={tls} />}
 
             <table>
                 <thead>
@@ -289,6 +323,46 @@ const DNS_SAID: Record<DnsCheck['agreement'], string> =
     'both-fail': 'Neither resolver answered, so the name itself may be gone.',
     'unknown': 'No system resolver could be read.',
 };
+
+// A handshake that completes says little on its own. Who signed the certificate says
+// a great deal: an issuer nobody expected is what interception looks like from here.
+function Tls({ checks }: { checks: TlsCheck[] })
+{
+    if (checks.length === 0)
+    {
+        return <p className="reading small">No named targets to check.</p>;
+    }
+
+    return (
+        <section className="reading">
+            {checks.map((check) => (
+                <p key={check.host} className="small">
+                    {check.host}: {describe(check)}
+                </p>
+            ))}
+        </section>
+    );
+}
+
+function describe(check: TlsCheck): string
+{
+    if (check.handshake === 'reset')
+    {
+        return 'the connection was cut during the handshake, which is what a filter '
+            + 'reading the requested name looks like';
+    }
+
+    if (check.certificate === null)
+    {
+        return `no handshake (${check.handshake})`;
+    }
+
+    const named = check.certificate.matchesHost
+        ? 'name matches'
+        : 'NAME DOES NOT MATCH';
+
+    return `signed by ${check.certificate.issuer}, ${named}, valid to ${check.certificate.validTo}`;
+}
 
 function Row({ target, blamed }: { target: StatusRow; blamed: boolean })
 {

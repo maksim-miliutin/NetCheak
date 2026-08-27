@@ -8,6 +8,7 @@ import { judge } from '../verdict/verdict.ts';
 import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
 import { probeRings } from '../route/rings.ts';
 import { checkDns } from '../dns/resolve.ts';
+import { inspectTls } from '../tls/handshake.ts';
 
 export interface ServerOptions
 {
@@ -146,6 +147,16 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     app.post('/api/dns', async () =>
     {
         return await checkDns();
+    });
+
+    // Who issued the certificate says more than whether the handshake worked: a name
+    // that matches and an issuer nobody expected is what interception looks like.
+    app.post('/api/tls', async () =>
+    {
+        const targets = repository.listTargets()
+            .filter((t) => t.enabled && !/^\d{1,3}(\.\d{1,3}){3}$/.test(t.host));
+
+        return { checks: await Promise.all(targets.map((t) => inspectTls(t.host, t.port))) };
     });
 
     // The measurement runs against a CDN rather than against this server: a transfer

@@ -87,3 +87,24 @@ export interface DnsCheck
     reference: Lookup;
     agreement: Agreement;
 }
+
+export type Handshake = 'completed' | 'reset' | 'refused' | 'timeout' | 'rejected';
+
+export interface Certificate
+{
+    issuer: string;
+    subject: string;
+    names: string[];
+    validTo: string;
+    matchesHost: boolean;
+}
+
+export interface TlsCheck
+{
+    host: string;
+    port: number;
+    handshake: Handshake;
+    ms: number | null;
+    certificate: Certificate | null;
+    error: string | null;
+}
