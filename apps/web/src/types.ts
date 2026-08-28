@@ -124,3 +124,19 @@ export interface History
     runs: Run[];
     lossyRuns: number;
 }
+
+export interface Hop
+{
+    number: number;
+    host: string | null;
+    address: string | null;
+    times: (number | null)[];
+}
+
+export interface Trace
+{
+    target: string;
+    hops: Hop[];
+    silentFrom: number | null;
+    error: string | null;
+}

@@ -1,4 +1,13 @@
-import type { DnsCheck, Health, History, Status, TlsCheck, Verdict } from './types';
+import type
+{
+    DnsCheck,
+    Health,
+    History,
+    Status,
+    TlsCheck,
+    Trace,
+    Verdict,
+} from './types';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T>
 {
@@ -45,6 +54,26 @@ export const forgetTarget = (id: number): Promise<unknown> =>
 
 export const getHistory = (): Promise<{ targets: History[] }> =>
     request<{ targets: History[] }>('/history');
+
+export const traceTo = (target: string): Promise<Trace> =>
+    request<Trace>('/trace',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+    });
+
+export async function getReport(): Promise<string>
+{
+    const response = await fetch('/api/report');
+
+    if (!response.ok)
+    {
+        throw new Error(`Report failed with ${response.status}`);
+    }
+
+    return await response.text();
+}
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
 

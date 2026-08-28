@@ -107,6 +107,32 @@ h1
 }
 
 /* The chain the check walks, drawn as a line that stops where the check stopped. */
+/* What to try next, in the band with the verdict it follows from. Only steps that
+   come out of the measurement are listed; a general checklist would be guessing. */
+.steps
+{
+    max-width: 58ch;
+    padding: 0;
+    margin: 0 0 24px;
+    color: var(--ink-soft);
+    font-size: 15px;
+    list-style: none;
+}
+
+.steps li
+{
+    padding-left: 20px;
+    margin-bottom: 4px;
+    text-indent: -20px;
+}
+
+.steps li::before
+{
+    margin-right: 10px;
+    color: var(--accent);
+    content: "→";
+}
+
 .chain
 {
     display: flex;
@@ -151,6 +177,59 @@ h1
 .link:last-child::after
 {
     display: none;
+}
+
+/* A link with something to say is the way to say it, so it looks like it can be
+   pressed rather than like a label that happens to be underlined. */
+.tellable button
+{
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    background: none;
+    border: 0;
+    border-bottom: 1px dashed currentcolor;
+    cursor: pointer;
+}
+
+.tellable button:hover
+{
+    border-bottom-style: solid;
+}
+
+.tellable button[aria-expanded="true"]
+{
+    border-bottom-style: solid;
+    border-bottom-width: 2px;
+}
+
+.told
+{
+    padding: 14px 16px;
+    margin-top: 16px;
+    background: color-mix(in srgb, var(--paper) 62%, transparent);
+    border-radius: 8px;
+}
+
+.told p
+{
+    margin: 0 0 6px;
+}
+
+.told p:last-child
+{
+    margin: 0;
+}
+
+.progress
+{
+    margin: 0 0 6px;
+}
+
+.countdown
+{
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
 }
 
 .passed
@@ -510,6 +589,81 @@ input:focus-visible
     stroke-width: 2;
     stroke-dasharray: 3 3;
     vector-effect: non-scaling-stroke;
+}
+
+/* The path is a list of steps, so it is drawn as one: a number per line, the address
+   beside it, and the ones that stopped answering greyed out to the end. */
+.path
+{
+    padding: 10px 0 4px;
+    margin: 10px 0 0;
+    font-size: 13px;
+    list-style: none;
+    counter-reset: hop;
+    border-top: 1px dashed var(--rule);
+}
+
+.hop
+{
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+    padding: 3px 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.hop::before
+{
+    min-width: 20px;
+    color: var(--ink-faint);
+    text-align: right;
+    counter-increment: hop;
+    content: counter(hop);
+}
+
+.where
+{
+    min-width: 15ch;
+}
+
+.took
+{
+    color: var(--ink-soft);
+}
+
+/* A router that declines to answer while passing traffic along is ordinary. */
+.hop.passing .where
+{
+    color: var(--ink-faint);
+}
+
+/* Silence that never ends is where the path stops. */
+.hop.silent .where,
+.hop.silent .took
+{
+    color: #ad2b23;
+}
+
+.ghost
+{
+    padding: 0;
+    color: var(--ink-faint);
+    font-size: 13px;
+    background: none;
+    border: 0;
+    border-bottom: 1px dashed currentcolor;
+    cursor: pointer;
+}
+
+.ghost:hover:not(:disabled)
+{
+    color: var(--ink);
+    background: none;
+}
+
+.ghost:disabled
+{
+    border-bottom-color: transparent;
 }
 
 .kept
