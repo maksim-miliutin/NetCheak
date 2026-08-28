@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { Database } from './db/database.ts';
 import { ChecksRepository } from './db/checks.repository.ts';
 import { buildServer } from './http/server.ts';
+import { choosePort } from './http/port.ts';
 
 const DEFAULT_PORT = 3001;
 
@@ -20,7 +21,8 @@ async function main(): Promise<void>
     await db.migrate(join(here, '..', 'migrations'));
 
     const app = await buildServer({ db, repository: new ChecksRepository(db) });
-    const port = Number.parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
+    const wanted = Number.parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
+    const { port, skipped } = await choosePort(wanted);
 
     // Shutdown order matters: stop accepting requests first, then close the file.
     // The other way round kills requests that are still being served.
@@ -35,6 +37,11 @@ async function main(): Promise<void>
     process.on('SIGINT', () => void shutdown());
 
     await app.listen({ port, host: '127.0.0.1' });
+
+    if (skipped > 0)
+    {
+        console.log(`Port ${wanted} was taken, so this is on ${port} instead.`);
+    }
 }
 
 main().catch((err) =>

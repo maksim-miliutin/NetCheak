@@ -12,7 +12,9 @@ npm run dev --workspace @netcheck/web     # http://localhost:5173
 ```
 
 The API writes to `netcheck.db` in the working directory. Set `NETCHECK_DB` to put
-it somewhere else. Nothing else to install: no database server, no container.
+it somewhere else, and `PORT` to ask for a particular one. If the port is taken the
+next free one is used and the choice is printed. Nothing else to install: no database
+server, no container.
 
 ```
 npm test          # 56 tests

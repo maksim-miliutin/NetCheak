@@ -5,6 +5,7 @@
 import { Database } from './db/database.ts';
 import { ChecksRepository } from './db/checks.repository.ts';
 import { buildServer } from './http/server.ts';
+import { choosePort } from './http/port.ts';
 
 // @ts-expect-error the alias is provided by the build script
 import { migrations, web } from '#assets';
@@ -15,7 +16,7 @@ interface Asset
     sql: string;
 }
 
-const PORT = 3001;
+const WANTED = 3001;
 
 const TYPES: Record<string, string> =
 {
@@ -36,12 +37,16 @@ async function main(): Promise<void>
         db.applyBundled(file.name, file.sql);
     }
 
+    // Running it twice, or having something else on the port, printed a stack trace
+    // and left the person to work it out.
+    const { port } = await choosePort(WANTED);
+
     const app = await buildServer(
     {
         db,
         repository: new ChecksRepository(db),
         logLevel: 'warn',
-        allowedOrigins: [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`],
+        allowedOrigins: [`http://127.0.0.1:${port}`, `http://localhost:${port}`],
     });
 
     const pages = web as Record<string, string>;
@@ -63,9 +68,9 @@ async function main(): Promise<void>
             .send(Buffer.from(file, 'base64'));
     });
 
-    await app.listen({ port: PORT, host: '127.0.0.1' });
+    await app.listen({ port, host: '127.0.0.1' });
 
-    console.log(`netcheck is running. Open http://127.0.0.1:${PORT} in a browser.`);
+    console.log(`netcheck is running. Open http://127.0.0.1:${port} in a browser.`);
     console.log('Close this window to stop it.');
 }
 
