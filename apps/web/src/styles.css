@@ -81,6 +81,27 @@ body
     text-transform: uppercase;
 }
 
+.tongue
+{
+    padding: 2px 7px;
+    margin-left: 12px;
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    background: none;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.tongue:hover
+{
+    color: var(--ink);
+    background: none;
+    border-color: var(--ink-faint);
+}
+
 .masthead span
 {
     color: var(--ink-soft);

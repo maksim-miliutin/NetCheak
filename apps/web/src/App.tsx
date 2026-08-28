@@ -5,6 +5,7 @@ import
     getHistory,
     getReport,
     getStatus,
+    getTunnels,
     runCheck,
     runDns,
     runSpeed,
@@ -14,12 +15,15 @@ import
 } from './api';
 import { EVERY_MS, isDue, nextInSeconds } from './watch';
 import { ceilingOf, plot } from './trace';
+import { pickTongue, WORDS, type Words } from './words';
+import { showStamp } from './when';
 import type
 {
     DnsCheck,
     History,
     SpeedRow,
     Trace,
+    Tunnels,
     Status,
     StatusRow,
     TlsCheck,
@@ -36,22 +40,28 @@ export function App()
     const [step, setStep] = useState<string | null>(null);
     const [typed, setTyped] = useState('');
     const [history, setHistory] = useState<History[]>([]);
+    const [tunnels, setTunnels] = useState<Tunnels | null>(null);
     const [watching, setWatching] = useState(true);
     const [finishedAt, setFinishedAt] = useState<number | null>(null);
     const [now, setNow] = useState(() => Date.now());
     const [opened, setOpened] = useState<string | null>(null);
     const [traces, setTraces] = useState<Record<number, Trace | 'running'>>({});
     const [copied, setCopied] = useState(false);
+    const [tongue, setTongue] = useState(() => pickTongue(navigator.languages ?? ['en']));
+
+    const say = WORDS[tongue];
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () =>
     {
         try
         {
-            const [next, past] = await Promise.all([getStatus(), getHistory()]);
+            const [next, past, through] = await Promise.all(
+                [getStatus(), getHistory(), getTunnels()]);
 
             setStatus(next);
             setHistory(past.targets);
+            setTunnels(through);
             setError(null);
         }
         catch (err)
@@ -120,7 +130,7 @@ export function App()
 
     if (!loaded)
     {
-        return <p>Loading…</p>;
+        return <p>{say.loading}</p>;
     }
 
 
@@ -131,13 +141,13 @@ export function App()
     {
         try
         {
-            setStep('Connecting to each target');
+            setStep(say.connecting);
             await runCheck();
 
-            setStep('Asking two resolvers the same name');
+            setStep(say.askingResolvers);
             setDns(await runDns());
 
-            setStep('Reading certificates');
+            setStep(say.readingCertificates);
 
             const result = await runTls();
 
@@ -238,22 +248,40 @@ export function App()
                 <div className="inner">
                     <header className="masthead">
                         <b>netcheck</b>
-                        <span>{status?.targets[0]?.checkedAt ?? 'not checked yet'}</span>
+
+                        <span>
+                            {status?.targets[0]?.checkedAt === undefined
+                                || status.targets[0].checkedAt === null
+                                ? say.notCheckedYet
+                                : showStamp(status.targets[0].checkedAt, tongue)}
+
+                            {/* The browser is asked first, and a person whose machine
+                                is set to one language while they read another can say
+                                so without hunting for a setting. */}
+                            <button
+                                type="button"
+                                className="tongue"
+                                onClick={() => setTongue(tongue === 'ru' ? 'en' : 'ru')}
+                            >
+                                {tongue === 'ru' ? 'EN' : 'RU'}
+                            </button>
+                        </span>
                     </header>
 
-                    {status !== null && <Headline verdict={status.verdict} />}
+                    {status !== null && <Headline verdict={status.verdict} say={say} />}
 
                     {status !== null && (
                         <Chain
                             cause={status.verdict.cause}
+                            say={say}
                             has={{ Names: dns !== null, Connections: tls !== null }}
                             opened={opened}
                             onOpen={(link) => setOpened(opened === link ? null : link)}
                         />
                     )}
 
-                    {opened === 'Names' && dns !== null && <Dns check={dns} />}
-                    {opened === 'Connections' && tls !== null && <Tls checks={tls} />}
+                    {opened === 'Names' && dns !== null && <Dns check={dns} say={say} />}
+                    {opened === 'Connections' && tls !== null && <Tls checks={tls} say={say} />}
                 </div>
             </div>
 
@@ -261,17 +289,17 @@ export function App()
 
             <div className="actions">
                 <button type="button" className="primary" onClick={runAll} disabled={busy}>
-                    Run the checks
+                    {say.runChecks}
                 </button>
 
                 {/* Speed stands apart: it takes ten seconds and spends real traffic,
                     which is not something to do on every visit. */}
                 <button type="button" onClick={speed} disabled={busy}>
-                    Measure speed
+                    {say.measureSpeed}
                 </button>
 
                 <button type="button" onClick={copyReport} disabled={busy}>
-                    {copied ? 'Copied' : 'Copy report'}
+                    {copied ? say.copied : say.copyReport}
                 </button>
 
                 <label className="repeat">
@@ -280,7 +308,7 @@ export function App()
                         checked={watching}
                         onChange={(event) => setWatching(event.target.checked)}
                     />
-                    Keep checking
+                    {say.keepChecking}
                     {watching && step === null && finishedAt !== null && (
                         <span className="countdown">
                             {nextInSeconds(now - finishedAt, EVERY_MS)}s
@@ -296,12 +324,20 @@ export function App()
             {/* The transfer runs for about ten seconds. Without a word about it the
                 page looks stuck, and people click the button again. */}
             {measuring && (
-                <p className="reading small">Pulling and pushing data, about ten seconds…</p>
+                <p className="reading small">{say.pullingData}…</p>
             )}
 
             {error !== null && <p className="error">{error}</p>}
 
-            {status?.speed != null && <Speed speed={status.speed} />}
+            {/* A tunnel changes which road the traffic takes, and a check that looks
+                strange often looks that way because it left through one. */}
+            {tunnels !== null && tunnels.tunnelling.length > 0 && (
+                <p className="reading small">
+                    {say.throughTunnel(tunnels.tunnelling.join(', '))}
+                </p>
+            )}
+
+            {status?.speed != null && <Speed speed={status.speed} say={say} />}
 
             <ul className="lanes">
                     {(status?.targets ?? []).map((target) => (
@@ -309,6 +345,7 @@ export function App()
                             key={target.targetId}
                             target={target}
                             past={history.find((h) => h.targetId === target.targetId) ?? null}
+                            say={say}
                             trace={traces[target.targetId] ?? null}
                             onTrace={trace}
                             forget={forget}
@@ -321,11 +358,11 @@ export function App()
                     value={typed}
                     onChange={(event) => setTyped(event.target.value)}
                     onKeyDown={(event) => event.key === 'Enter' && void watch()}
-                    placeholder="Watch another address"
+                    placeholder={say.watchAddress}
                     aria-label="Address to watch"
                 />
                 <button type="button" onClick={watch} disabled={typed.trim() === ''}>
-                    Watch
+                    {say.watch}
                 </button>
             </div>
             </main>
@@ -355,9 +392,10 @@ const BREAKS: Record<Verdict['cause'], Link | null> =
     'unstable': null,
 };
 
-function Chain({ cause, has, opened, onOpen }:
+function Chain({ cause, say, has, opened, onOpen }:
 {
     cause: Verdict['cause'];
+    say: Words;
     has: Partial<Record<Link, boolean>>;
     opened: string | null;
     onOpen: (link: Link) => void;
@@ -376,7 +414,7 @@ function Chain({ cause, has, opened, onOpen }:
                 // belongs where a reader goes looking for it, not in a heap below.
                 if (has[link] !== true)
                 {
-                    return <li key={link} className={shape}>{link}</li>;
+                    return <li key={link} className={shape}>{say.chain[link]}</li>;
                 }
 
                 return (
@@ -386,7 +424,7 @@ function Chain({ cause, has, opened, onOpen }:
                             onClick={() => onOpen(link)}
                             aria-expanded={opened === link}
                         >
-                            {link}
+                            {say.chain[link]}
                         </button>
                     </li>
                 );
@@ -412,158 +450,38 @@ function state(index: number, stops: number, cause: Verdict['cause']): string
 
 // The point of the tool is the sentence, not the table: the table is the evidence
 // underneath it.
-function Headline({ verdict }: { verdict: Verdict })
+function Headline({ verdict, say }: { verdict: Verdict; say: Words })
 {
-    const said = SAID[verdict.cause];
+    const said = say.said[verdict.cause];
 
     return (
         <>
             <h1>{said.headline}</h1>
             <p className="lead">{said.detail(verdict)}</p>
 
-            {NEXT[verdict.cause].length > 0 && (
+            {say.next[verdict.cause].length > 0 && (
                 <ul className="steps">
-                    {NEXT[verdict.cause].map((step) => <li key={step}>{step}</li>)}
+                    {say.next[verdict.cause].map((step) => <li key={step}>{step}</li>)}
                 </ul>
             )}
         </>
     );
 }
 
-/**
- * Naming the fault is half of it. Somebody whose page will not open wants the next
- * thing to try, and only the steps that follow from what was measured are listed:
- * a checklist of everything one might do to a router would be guessing.
- */
-const NEXT: Record<Verdict['cause'], string[]> =
-{
-    'none': [],
-    'never-checked': [],
-    'link':
-    [
-        'Check the cable between the machine and the router',
-        'Look at whether other devices on the same network can reach anything',
-    ],
-    'router':
-    [
-        'Check the cable and the lights on the router',
-        'Restart the router and run the checks again',
-    ],
-    'provider':
-    [
-        'Ask the provider whether there is an outage on your line',
-        'Copy the report below into the ticket, so the numbers go with it',
-    ],
-    'dns':
-    [
-        'Set the DNS server to 1.1.1.1 or 9.9.9.9 in the network settings',
-        'Run the checks again to see whether the names resolve then',
-    ],
-    'sinkholed':
-    [
-        'The answer is coming from somewhere between you and the site',
-        'A different DNS server usually gets around it',
-    ],
-    'filtered':
-    [
-        'Changing the DNS server will not help: the lookup already works',
-        'Try the same names from another network to see whether it follows you',
-    ],
-    'handshake-cut':
-    [
-        'The connection is cut after it opens, so the address is reachable',
-        'Try the same names from another network to see whether it follows you',
-    ],
-    'remote': [],
-    'unstable':
-    [
-        'Run the checks for a while: the history below shows whether it comes and goes',
-        'If it does, copy the report into a ticket with the provider',
-    ],
-};
 
-const SAID: Record<Verdict['cause'], { headline: string; detail: (v: Verdict) => string }> =
-{
-    'none':
-    {
-        headline: 'Your connection is fine',
-        detail: (v) => `All ${v.total} targets answered, losing nothing.`,
-    },
-    'never-checked':
-    {
-        headline: 'Nothing measured yet',
-        detail: () => 'Run a check to see where the connection stands.',
-    },
-    'link':
-    {
-        headline: 'Nothing is reachable',
-        detail: () => 'Even raw addresses stayed silent, so the problem is at your end. '
-            + 'The router could not be reached to narrow it down further.',
-    },
-    'router':
-    {
-        headline: 'The router is not answering',
-        detail: () => 'Nothing beyond this machine replied, and neither did the gateway. '
-            + 'Check the cable and the router itself before blaming the provider.',
-    },
-    'provider':
-    {
-        headline: 'The line past the router is down',
-        detail: () => 'The router answers, so the cable and the box are fine. Nothing '
-            + 'beyond it replies, which puts the fault with the provider.',
-    },
-    'dns':
-    {
-        headline: 'Names do not resolve',
-        detail: (v) => `Addresses answer, ${list(v.blame)} do not. Packets travel; `
-            + 'it is the lookup that fails. Changing the DNS server usually fixes it.',
-    },
-    'sinkholed':
-    {
-        headline: 'Something is standing in for these names',
-        detail: (v) => `${list(v.blame)} resolve to an address nobody can route to, so `
-            + 'the answer did not come from the site. A different DNS server usually '
-            + 'gets around it.',
-    },
-    'filtered':
-    {
-        headline: 'The names resolve and still will not open',
-        detail: (v) => `${list(v.blame)} are found by the resolver, so the lookup is `
-            + 'fine. The connection itself is what fails, which means changing DNS '
-            + 'would not help.',
-    },
-    'handshake-cut':
-    {
-        headline: 'The connection opens and is cut',
-        detail: (v) => `${list(v.blame)} accept a connection and then sever it during `
-            + 'the handshake. Nothing is lost on the way, which is why the numbers '
-            + 'below look healthy.',
-    },
-    'remote':
-    {
-        headline: 'Your connection works',
-        detail: (v) => `${list(v.blame)} did not answer while the rest did, so the outage `
-            + 'is on their side, not yours.',
-    },
-    'unstable':
-    {
-        headline: 'The connection is unsteady',
-        detail: (v) => `${list(v.blame)} answered, but with losses or wandering latency. `
-            + 'Calls and games will stutter; pages will mostly load.',
-    },
-};
 
 // Download and upload sit above the table because they answer a different question
 // than reachability: not whether the line works, but how much of it there is.
-function Speed({ speed }: { speed: SpeedRow })
+function Speed({ speed, say }: { speed: SpeedRow; say: Words })
 {
     return (
         <section className="reading">
             <p className="speed">
-                {speed.downloadMbps ?? '—'} Mbit/s down, {speed.uploadMbps ?? '—'} Mbit/s up
+                {speed.downloadMbps ?? '—'} Mbit/s {say.down},
+                {' '}{speed.uploadMbps ?? '—'} Mbit/s {say.up}
             </p>
             <p className="small">
-                measured against {speed.source} over {speed.streams} connections
+                {say.measuredAgainst(speed.source, speed.streams)}
             </p>
         </section>
     );
@@ -571,18 +489,18 @@ function Speed({ speed }: { speed: SpeedRow })
 
 // Two resolvers asked the same name. Agreement is dull and worth one line; a
 // disagreement is the whole reason the check exists.
-function Dns({ check }: { check: DnsCheck })
+function Dns({ check, say }: { check: DnsCheck; say: Words })
 {
     const system = check.system;
 
     if (system === null)
     {
-        return <p className="told small">No system resolver could be read.</p>;
+        return <p className="told small">{say.noResolver}</p>;
     }
 
     return (
         <section className="told">
-            <p>{DNS_SAID[check.agreement]}</p>
+            <p>{say.dns[check.agreement]}</p>
             <p className="small">
                 {system.server} said {system.addresses.join(', ') || system.error},
                 {' '}{check.reference.server} said {check.reference.addresses.join(', ')
@@ -592,29 +510,14 @@ function Dns({ check }: { check: DnsCheck })
     );
 }
 
-const DNS_SAID: Record<DnsCheck['agreement'], string> =
-{
-    'agree': 'Your resolver answers the same as a public one.',
-    'sinkholed': 'Your resolver points this name at an address nobody can route to. '
-        + 'That answer did not come from the site: something is standing in for it.',
-    'differ': 'Your resolver returns a different address than a public one does. '
-        + 'Often that is just a content network handing out a nearer server, so this '
-        + 'is worth a look rather than a conclusion.',
-    'system-fails': 'Your resolver cannot answer, while a public one can. '
-        + 'Changing the DNS server would fix this.',
-    'public-fails': 'Your resolver answers and the public one does not, which usually '
-        + 'means the public one is blocked rather than broken.',
-    'both-fail': 'Neither resolver answered, so the name itself may be gone.',
-    'unknown': 'No system resolver could be read.',
-};
 
 // A handshake that completes says little on its own. Who signed the certificate says
 // a great deal: an issuer nobody expected is what interception looks like from here.
-function Tls({ checks }: { checks: TlsCheck[] })
+function Tls({ checks, say }: { checks: TlsCheck[]; say: Words })
 {
     if (checks.length === 0)
     {
-        return <p className="told small">No named targets to check.</p>;
+        return <p className="told small">{say.noNamedTargets}</p>;
     }
 
     return (
@@ -656,9 +559,10 @@ const LANE_HEIGHT = 40;
  * sampling over time since the first version; showing a moment instead of the run of
  * it threw most of what it knows away.
  */
-function Lane({ target, past, trace, onTrace, forget }:
+function Lane({ target, past, say, trace, onTrace, forget }:
 {
     target: StatusRow;
+    say: Words;
     past: History | null;
     trace: Trace | 'running' | null;
     onTrace: (id: number, host: string) => void;
@@ -685,7 +589,7 @@ function Lane({ target, past, trace, onTrace, forget }:
                     onClick={() => forget(target.targetId)}
                     aria-label={`Stop watching ${target.name}`}
                 >
-                    remove
+                    {say.remove}
                 </button>
             </div>
 
@@ -704,22 +608,23 @@ function Lane({ target, past, trace, onTrace, forget }:
             </svg>
 
             <div className="numbers">
-                <span>loss <b>{format(target.lossPercent, '%')}</b></span>
-                <span>average <b>{format(target.averageMs, ' ms')}</b></span>
-                <span>jitter <b>{format(target.jitterMs, ' ms')}</b></span>
+                <span>{say.loss} <b>{format(target.lossPercent, '%')}</b></span>
+                <span>{say.average} <b>{format(target.averageMs, ' ms')}</b></span>
+                <span>{say.jitter} <b>{format(target.jitterMs, ' ms')}</b></span>
                 <button
                     type="button"
                     className="ghost"
                     onClick={() => onTrace(target.targetId, target.host)}
                     disabled={trace === 'running'}
                 >
-                    {trace === 'running' ? 'tracing…' : 'trace the path'}
+                    {trace === 'running' ? say.tracing : say.tracePath}
                 </button>
 
-                {runs.length > 0 && <span className="kept">{runs.length} checks kept</span>}
+                {runs.length > 0
+                    && <span className="kept">{say.checksKept(runs.length)}</span>}
             </div>
 
-            {trace !== null && trace !== 'running' && <Path trace={trace} />}
+            {trace !== null && trace !== 'running' && <Path trace={trace} say={say} />}
         </li>
     );
 }
@@ -728,7 +633,7 @@ function Lane({ target, past, trace, onTrace, forget }:
  * The hops between here and there. The layered checks say the far end is silent; this
  * says where along the way it went quiet, which is the one thing they cannot.
  */
-function Path({ trace }: { trace: Trace })
+function Path({ trace, say }: { trace: Trace; say: Words })
 {
     if (trace.error !== null)
     {
@@ -737,7 +642,7 @@ function Path({ trace }: { trace: Trace })
 
     if (trace.hops.length === 0)
     {
-        return <p className="path small">The trace came back empty.</p>;
+        return <p className="path small">{say.emptyTrace}</p>;
     }
 
     return (
@@ -773,15 +678,6 @@ function best(times: (number | null)[]): string
 
 
 
-function list(names: string[]): string
-{
-    if (names.length <= 1)
-    {
-        return names[0] ?? 'nothing';
-    }
-
-    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
 
 function format(value: number | null, unit: string): string
 {
