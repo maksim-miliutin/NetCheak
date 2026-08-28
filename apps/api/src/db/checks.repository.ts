@@ -33,6 +33,12 @@ export interface Run
     averageMs: number | null;
 }
 
+export interface Swept
+{
+    samples: number;
+    checks: number;
+}
+
 export interface History
 {
     targetId: number;
@@ -73,24 +79,18 @@ interface StatusRecord extends Omit<StatusRow, 'samples'>
     samples: string | null;
 }
 
+// Numbering every run to keep the first of each made SQLite build the whole table
+// before answering: at a year of checking that is four hundred thousand rows for four
+// answers. Asking each target for its own newest run walks the index instead. Run ids
+// rise with time, so ordering by id is ordering by clock.
 const LATEST_STATUS = `
-    WITH ranked AS (
-        SELECT
-            r.id, r.target_id, r.loss_percent, r.average_ms, r.jitter_ms, r.quality,
-            c.started_at,
-            ROW_NUMBER() OVER (
-                PARTITION BY r.target_id ORDER BY c.started_at DESC, r.id DESC
-            ) AS place
-        FROM target_runs r
-        JOIN checks c ON c.id = r.check_id
-    )
     SELECT
         t.id AS targetId, t.name, t.host, t.port,
-        l.loss_percent AS lossPercent,
-        l.average_ms AS averageMs,
-        l.jitter_ms AS jitterMs,
-        l.quality,
-        l.started_at AS checkedAt,
+        r.loss_percent AS lossPercent,
+        r.average_ms AS averageMs,
+        r.jitter_ms AS jitterMs,
+        r.quality,
+        c.started_at AS checkedAt,
         (
             SELECT json_group_array(json_object(
                 'reachable', s.reachable,
@@ -98,11 +98,14 @@ const LATEST_STATUS = `
             ))
             FROM (
                 SELECT reachable, latency_ms FROM samples
-                WHERE target_run_id = l.id ORDER BY id
+                WHERE target_run_id = r.id ORDER BY id
             ) s
         ) AS samples
     FROM targets t
-    LEFT JOIN ranked l ON l.target_id = t.id AND l.place = 1
+    LEFT JOIN target_runs r ON r.id = (
+        SELECT id FROM target_runs WHERE target_id = t.id ORDER BY id DESC LIMIT 1
+    )
+    LEFT JOIN checks c ON c.id = r.check_id
     WHERE t.enabled = 1
     ORDER BY t.id
 `;
@@ -251,30 +254,49 @@ export class ChecksRepository
     }
 
     /**
+     * Individual attempts are read for the newest run of each target and never again,
+     * yet they are two thirds of the file. The summaries are what the history draws,
+     * so they outlive the attempts they were drawn from by a long way.
+     */
+    prune(sampleDays = 7, runDays = 365): Swept
+    {
+        const samples = this.db.prepare(`
+            DELETE FROM samples WHERE target_run_id IN (
+                SELECT r.id FROM target_runs r
+                JOIN checks c ON c.id = r.check_id
+                WHERE c.started_at < datetime('now', ?)
+            )
+        `).run(`-${sampleDays} days`);
+
+        // Runs go with their check, and their samples go with them: the cascade does it.
+        const checks = this.db
+            .prepare("DELETE FROM checks WHERE started_at < datetime('now', ?)")
+            .run(`-${runDays} days`);
+
+        return { samples: Number(samples.changes), checks: Number(checks.changes) };
+    }
+
+    /**
      * Recent runs for every watched target, newest last. A line that drops for a
      * minute every evening looks perfect in the latest check and obvious here.
      */
     history(limit = 20): History[]
     {
+        // Same reasoning as the status query: each target asks for its own newest
+        // runs down the index rather than numbering every row in the table.
         const rows = this.db.prepare(`
-            WITH ranked AS (
-                SELECT
-                    r.target_id, r.loss_percent, r.average_ms, c.started_at,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY r.target_id ORDER BY c.started_at DESC, r.id DESC
-                    ) AS place
-                FROM target_runs r
-                JOIN checks c ON c.id = r.check_id
-            )
             SELECT
                 t.id AS targetId, t.name,
-                l.started_at AS checkedAt,
-                l.loss_percent AS lossPercent,
-                l.average_ms AS averageMs
+                c.started_at AS checkedAt,
+                r.loss_percent AS lossPercent,
+                r.average_ms AS averageMs
             FROM targets t
-            JOIN ranked l ON l.target_id = t.id AND l.place <= ?
+            JOIN target_runs r ON r.id IN (
+                SELECT id FROM target_runs WHERE target_id = t.id ORDER BY id DESC LIMIT ?
+            )
+            JOIN checks c ON c.id = r.check_id
             WHERE t.enabled = 1
-            ORDER BY t.id, l.place DESC
+            ORDER BY t.id, r.id
         `).all(limit) as unknown as HistoryRecord[];
 
         const byTarget = new Map<number, History>();

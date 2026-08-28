@@ -10,6 +10,13 @@ const migrations = join(__dirname, '..', '..', 'migrations');
 const ok = (ms: number): Sample => ({ reachable: true, latencyMs: ms, error: null });
 const failed = (): Sample => ({ reachable: false, latencyMs: null, error: 'timeout' });
 
+/** Moves a check back in time, since a test cannot wait a month for one to age. */
+function age(db: Database, checkId: number, days: number): void
+{
+    db.prepare("UPDATE checks SET started_at = datetime('now', ?) WHERE id = ?")
+        .run(`-${days} days`, checkId);
+}
+
 function count(db: Database, table: string): number
 {
     return (db.prepare(`SELECT count(*) AS count FROM ${table}`).get() as { count: number }).count;
@@ -168,6 +175,76 @@ describe('ChecksRepository', () =>
         repository.removeTarget(target.id);
 
         expect(repository.history().some((v) => v.targetId === target.id)).toBe(false);
+    });
+
+    // Numbering every run to keep the first of each read the whole table: at a year of
+    // automatic checking that was over a second for four answers. The plan is asserted
+    // rather than the clock, since a timing test on a build machine proves nothing.
+    it('reads the latest run down the index instead of ranking the table', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(10)]));
+
+        const plan = db
+            .prepare('EXPLAIN QUERY PLAN SELECT id FROM target_runs WHERE target_id = 1'
+                + ' ORDER BY id DESC LIMIT 1')
+            .all() as { detail: string }[];
+
+        expect(plan.some((row) => /USING (COVERING )?INDEX/.test(row.detail))).toBe(true);
+        expect(plan.some((row) => row.detail.startsWith('SCAN'))).toBe(false);
+    });
+
+    // The attempts are read for the newest run and never again, yet they are two
+    // thirds of the file.
+    it('sweeps the attempts of runs older than the window', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        const old = repository.createCheck(1, 2000);
+        age(db, old, 30);
+        repository.saveResult(old, target.id, resultFor([ok(10), ok(12)]));
+
+        repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(11)]));
+
+        expect(repository.prune().samples).toBe(2);
+        expect(count(db, 'samples')).toBe(1);
+    });
+
+    // The summaries are what the history draws, so they outlive the attempts.
+    it('keeps the run itself when its attempts are swept', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+        const old = repository.createCheck(1, 2000);
+
+        age(db, old, 30);
+        repository.saveResult(old, target.id, resultFor([ok(10)]));
+        repository.prune();
+
+        expect(count(db, 'target_runs')).toBe(1);
+        expect(repository.history()[0]?.runs).toHaveLength(1);
+    });
+
+    it('sweeps a check once it is older than the longer window', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+        const ancient = repository.createCheck(1, 2000);
+
+        age(db, ancient, 400);
+        repository.saveResult(ancient, target.id, resultFor([ok(10)]));
+
+        expect(repository.prune().checks).toBe(1);
+        expect(count(db, 'target_runs')).toBe(0);
+    });
+
+    it('leaves everything alone when nothing is old enough', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(10)]));
+
+        expect(repository.prune()).toEqual({ samples: 0, checks: 0 });
+        expect(count(db, 'samples')).toBe(1);
     });
 
     it('stores a run together with its samples', async () =>
