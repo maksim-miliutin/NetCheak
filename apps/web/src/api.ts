@@ -6,6 +6,7 @@ import type
     Status,
     TlsCheck,
     Trace,
+    Tunnels,
     Verdict,
 } from './types';
 
@@ -74,6 +75,8 @@ export async function getReport(): Promise<string>
 
     return await response.text();
 }
+
+export const getTunnels = (): Promise<Tunnels> => request<Tunnels>('/tunnels');
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
 

@@ -140,3 +140,16 @@ export interface Trace
     silentFrom: number | null;
     error: string | null;
 }
+
+export interface Adapter
+{
+    name: string;
+    addresses: string[];
+    tunnel: boolean;
+}
+
+export interface Tunnels
+{
+    adapters: Adapter[];
+    tunnelling: string[];
+}
