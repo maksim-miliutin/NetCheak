@@ -259,6 +259,38 @@ describe('HTTP API', () =>
         expect(response.json().targets[0].runs).toHaveLength(1);
     });
 
+    it('refuses to trace something that is not a host', async () =>
+    {
+        const response = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/trace',
+            payload: { target: 'not a host' },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+
+    it('hands back a report as plain text', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/report' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['content-type']).toContain('text/plain');
+        expect(response.body).toContain('netcheck report');
+    });
+
+    // Repeating the checks to write the report would describe a different minute than
+    // the one it claims to.
+    it('writes the report from what the checks already found', async () =>
+    {
+        await app.inject({ method: 'POST', url: '/api/dns' });
+
+        const response = await app.inject({ method: 'GET', url: '/api/report' });
+
+        expect(response.body).toContain('Name lookup');
+    });
+
     it('answers 404 in the same shape as other errors', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });

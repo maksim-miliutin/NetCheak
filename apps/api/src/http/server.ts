@@ -7,8 +7,10 @@ import { measureTarget } from '../probe/probe.ts';
 import { judge } from '../verdict/verdict.ts';
 import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
 import { probeRings, type Rings } from '../route/rings.ts';
-import { checkDns } from '../dns/resolve.ts';
-import { inspectTls } from '../tls/handshake.ts';
+import { traceTo } from '../route/traceroute.ts';
+import { report } from '../report/report.ts';
+import { checkDns, type DnsCheck } from '../dns/resolve.ts';
+import { inspectTls, type TlsCheck } from '../tls/handshake.ts';
 import { isAddress, parseTarget } from '../targets/address.ts';
 
 export interface ServerOptions
@@ -64,6 +66,11 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // not wait for it. The nearest hop is looked at while the checks run, and what it
     // said is kept until the next run replaces it.
     let rings: Rings | null = null;
+
+    // The report is asked for after the checks, and repeating them to write it would
+    // measure a different minute than the one it claims to describe.
+    let lastDns: DnsCheck | null = null;
+    let lastTls: TlsCheck[] = [];
 
     const { db, repository } = options;
 
@@ -151,6 +158,25 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // last one, which left the hardest case — a line that drops now and then — invisible.
     app.get('/api/history', async () => ({ targets: repository.history() }));
 
+    // A person telling their provider the line is bad is rarely believed. The same
+    // measurements as plain text can be pasted into a ticket by somebody who will
+    // never open this tool.
+    app.get('/api/report', async (request, reply) =>
+    {
+        const targets = repository.latestStatus();
+
+        const text = report({
+            verdict: judge(targets, rings ?? undefined, lastDns ?? undefined, lastTls),
+            targets,
+            history: repository.history(),
+            rings,
+            dns: lastDns,
+            tls: lastTls,
+        });
+
+        return reply.type('text/plain; charset=utf-8').send(text);
+    });
+
     app.post<{ Body: { target?: string } }>('/api/targets', async (request) =>
     {
         const parsed = parseTarget(request.body?.target ?? '');
@@ -193,7 +219,23 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // one that answers with somebody else's address.
     app.post('/api/dns', async () =>
     {
-        return await checkDns();
+        lastDns = await checkDns();
+
+        return lastDns;
+    });
+
+    // Which hop the packets stop at is the one question the layered checks cannot
+    // answer: they say the far end is silent, not where along the way it went quiet.
+    app.post<{ Body: { target?: string } }>('/api/trace', async (request) =>
+    {
+        const parsed = parseTarget(request.body?.target ?? '');
+
+        if (!parsed.ok)
+        {
+            throw badRequest(REFUSALS[parsed.refusal] ?? 'That is not a host to trace');
+        }
+
+        return await traceTo(parsed.address.host);
     });
 
     // Who issued the certificate says more than whether the handshake worked: a name
@@ -204,6 +246,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
             .filter((t) => t.enabled && !isAddress(t.host));
 
         const checks = await Promise.all(named.map((t) => inspectTls(t.host, t.port)));
+
+        lastTls = checks;
 
         // The verdict is recomputed here so a cut handshake reaches the headline: the
         // probe sees no loss when the connection opens and is severed afterwards.
@@ -260,6 +304,10 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         {
             repository.saveResult(checkId, id, result);
         }
+
+        // Swept here rather than on a schedule of its own: the file only grows when a
+        // check writes to it, so that is the moment to take the old rows out.
+        repository.prune();
 
         return { checkId, results: measured.map((v) => v.result) };
     });
