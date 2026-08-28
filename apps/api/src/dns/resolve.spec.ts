@@ -9,6 +9,24 @@ const failed = (server: string, error = 'ETIMEOUT'): Lookup =>
 
 describe('compare', () =>
 {
+    // A name that lives only on the sixth version used to come back empty and be read
+    // as a resolver that cannot answer, which is the opposite of what happened.
+    it('takes an answer of either family as an answer', () =>
+    {
+        const sixOnly = answered('192.168.1.1', ['2607:f8b0:400c:c01::65']);
+        const reference = answered('1.1.1.1', ['2607:f8b0:400c:c01::65']);
+
+        expect(compare(sixOnly, reference)).toBe('agree');
+    });
+
+    it('matches on a shared address whichever family it belongs to', () =>
+    {
+        const system = answered('192.168.1.1', ['93.184.216.34', '2606:2800:220::1']);
+        const reference = answered('1.1.1.1', ['2606:2800:220::1']);
+
+        expect(compare(system, reference)).toBe('agree');
+    });
+
     it('says nothing when the system resolver is unknown', () =>
     {
         expect(compare(null, answered('1.1.1.1', ['93.184.216.34']))).toBe('unknown');

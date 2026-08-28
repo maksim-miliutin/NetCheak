@@ -117,18 +117,37 @@ async function askServer(server: string, name: string): Promise<Lookup>
     const resolver = new Resolver({ timeout: TIMEOUT_MS, tries: 1 });
     const started = performance.now();
 
-    try
+    resolver.setServers([server]);
+
+    // Both families are asked for. A name that lives only on the sixth version would
+    // otherwise come back empty and be read as a resolver that cannot answer, which
+    // is the opposite of what happened.
+    const [four, six] = await Promise.all(
+    [
+        resolver.resolve4(name).then(found).catch(failed),
+        resolver.resolve6(name).then(found).catch(failed),
+    ]);
+
+    const addresses = [...four.addresses, ...six.addresses];
+    const ms = Math.round(performance.now() - started);
+
+    if (addresses.length > 0)
     {
-        resolver.setServers([server]);
-
-        const addresses = await resolver.resolve4(name);
-
-        return { server, addresses, ms: Math.round(performance.now() - started), error: null };
+        return { server, addresses, ms, error: null };
     }
-    catch (err)
-    {
-        const code = (err as NodeJS.ErrnoException).code ?? (err as Error).message;
 
-        return { server, addresses: [], ms: null, error: code };
-    }
+    return { server, addresses: [], ms: null, error: four.error ?? six.error ?? 'no answer' };
+}
+
+function found(addresses: string[]): { addresses: string[]; error: string | null }
+{
+    return { addresses, error: null };
+}
+
+/** One family missing is ordinary; both missing is the answer worth reporting. */
+function failed(err: unknown): { addresses: string[]; error: string | null }
+{
+    const code = (err as NodeJS.ErrnoException).code ?? (err as Error).message;
+
+    return { addresses: [], error: code };
 }
