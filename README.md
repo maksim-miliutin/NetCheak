@@ -40,6 +40,32 @@ privileges and travels the same road real traffic does. The trade-off is that it
 measures the handshake rather than the wire, so the numbers sit a little above what
 `ping` reports.
 
+## Getting past a block
+
+The tool can tell you whether a block in the way is one that splitting the write gets
+past — the trick most circumvention tools use, tried once and measured. It does not do
+the splitting for you. Doing it for every connection means a driver in the kernel and
+the administrator rights that come with one, and this tool has refused those from the
+start: a diagnostic that asks to run inside the kernel is asking for more trust than
+it can repay.
+
+Knowing which measure would work is what lets a person choose a tool that does it.
+
+It can also do the splitting, for a browser pointed at it. Starting the proxy opens a
+port on this machine; set the browser's HTTP proxy to it and every connection through
+it has its first write cut in two, so no single packet carries the name of the site.
+
+Better than pointing the browser at it outright is giving the browser the address of
+`/api/proxy.pac` as its automatic proxy configuration. Only the hosts that turned out
+to need a different way of writing go through the proxy; everything else goes straight
+out and never touches this tool. Less of a person's traffic passing through it is the
+point, not more.
+
+On CONNECT the proxy relays bytes without reading them: the traffic stays encrypted
+end to end and this holds no key to any of it. It covers what is pointed at it and
+nothing else, which is the price of not installing a driver in the kernel. It is off
+until switched on, and while it runs it is listed under what leaves this machine.
+
 ## What the verdict can and cannot say
 
 | Seen | Said |
