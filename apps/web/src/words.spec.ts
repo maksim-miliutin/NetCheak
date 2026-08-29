@@ -72,6 +72,64 @@ describe('the two tongues', () =>
         }
     });
 
+    it('says every state of the sixth version in both', () =>
+    {
+        expect(Object.keys(WORDS.ru.sixth).sort()).toEqual(Object.keys(WORDS.en.sixth).sort());
+        expect(Object.values(WORDS.ru.sixth).every((v) => v.length > 0)).toBe(true);
+    });
+
+    // Having no address of that family is ordinary and must not read as a fault.
+    it('does not call a missing sixth version a problem', () =>
+    {
+        for (const tongue of [WORDS.en, WORDS.ru])
+        {
+            expect(tongue.sixth.absent.toLowerCase()).toMatch(/ordinary|обычное/);
+        }
+    });
+
+    // Nothing updates on its own, and the wording must not suggest otherwise.
+    it('never promises to update itself', () =>
+    {
+        for (const tongue of [WORDS.en, WORDS.ru])
+        {
+            const line = tongue.newerExists('1.3.0').toLowerCase();
+
+            expect(line).toMatch(/nothing updates on its own|само ничего не обновляется/);
+        }
+    });
+
+    // The proxy relays bytes blind, and the wording must not suggest it sees more.
+    it('says plainly that the proxy reads nothing', () =>
+    {
+        for (const tongue of [WORDS.en, WORDS.ru])
+        {
+            expect(tongue.proxyBlind.toLowerCase())
+                .toMatch(/without reading|без чтения/);
+            expect(tongue.proxyBlind.toLowerCase())
+                .toMatch(/no key|ключа/);
+        }
+    });
+
+    // The sentence sits above a table of what each way did, and must not name a way
+    // the table may contradict.
+    it('does not name a particular way in the sentence above the table', () =>
+    {
+        for (const tongue of [WORDS.en, WORDS.ru])
+        {
+            const line = tongue.evasion.helps.toLowerCase();
+
+            expect(line).not.toMatch(/through the name|по имени/);
+        }
+    });
+
+    it('names every outcome of a way in both', () =>
+    {
+        expect(Object.keys(WORDS.ru.answerNames).sort())
+            .toEqual(Object.keys(WORDS.en.answerNames).sort());
+        expect(Object.keys(WORDS.ru.wayNames).sort())
+            .toEqual(Object.keys(WORDS.en.wayNames).sort());
+    });
+
     it('carries every word in both', () =>
     {
         expect(Object.keys(WORDS.ru).sort()).toEqual(Object.keys(WORDS.en).sort());

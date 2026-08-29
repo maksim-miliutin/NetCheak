@@ -153,3 +153,91 @@ export interface Tunnels
     adapters: Adapter[];
     tunnelling: string[];
 }
+
+export interface Path
+{
+    host: string;
+    mtu: number | null;
+    ordinary: number;
+    error: string | null;
+}
+
+export type Sixth = 'absent' | 'link-local-only' | 'working' | 'broken';
+
+export interface SixthCheck
+{
+    state: Sixth;
+    addresses: string[];
+    answer: string | null;
+    ms: number | null;
+}
+
+export interface Neighbour
+{
+    address: string;
+    hardware: string;
+    gateway: boolean;
+}
+
+export interface Household
+{
+    neighbours: Neighbour[];
+    error: string | null;
+}
+
+export type Culprit = 'open' | 'name-read' | 'address-blocked' | 'site-down' | 'unclear';
+
+export interface Cut
+{
+    host: string;
+    tcp: string;
+    named: string;
+    unnamed: string;
+    culprit: Culprit;
+}
+
+export interface Errand
+{
+    where: string;
+    why: string;
+    onDemand: boolean;
+}
+
+export interface Outbound
+{
+    errands: Errand[];
+    never: string[];
+}
+
+export interface Newer
+{
+    current: string;
+    latest: string | null;
+    behind: boolean;
+    error: string | null;
+}
+
+export interface Evasion
+{
+    host: string;
+    whole: string;
+    split: string;
+    splittingHelps: boolean;
+    tried: Tried[];
+    works: string | null;
+    error: string | null;
+}
+
+export interface ProxyState
+{
+    running: boolean;
+    port: number | null;
+    way: string | null;
+    ways: string[];
+}
+
+export interface Tried
+{
+    way: string;
+    answer: string;
+}

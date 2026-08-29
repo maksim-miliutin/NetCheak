@@ -5,6 +5,14 @@ import type
     History,
     Status,
     TlsCheck,
+    Path,
+    Cut,
+    Evasion,
+    Household,
+    Newer,
+    Outbound,
+    ProxyState,
+    SixthCheck,
     Trace,
     Tunnels,
     Verdict,
@@ -77,6 +85,50 @@ export async function getReport(): Promise<string>
 }
 
 export const getTunnels = (): Promise<Tunnels> => request<Tunnels>('/tunnels');
+
+export const measureMtu = (target: string): Promise<Path> =>
+    request<Path>('/mtu',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+    });
+
+export const checkSixth = (): Promise<SixthCheck> =>
+    request<SixthCheck>('/sixth', { method: 'POST' });
+
+export const getNeighbours = (): Promise<Household> => request<Household>('/neighbours');
+
+export const findCut = (target: string): Promise<Cut> =>
+    request<Cut>('/cut',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+    });
+
+export const getOutbound = (): Promise<Outbound> => request<Outbound>('/outbound');
+
+export const checkUpdate = (): Promise<Newer> =>
+    request<Newer>('/update', { method: 'POST' });
+
+export const tryEvasion = (target: string): Promise<Evasion> =>
+    request<Evasion>('/evasion',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+    });
+
+export const getProxy = (): Promise<ProxyState> => request<ProxyState>('/proxy');
+
+export const toggleProxy = (way?: string): Promise<ProxyState> =>
+    request<ProxyState>('/proxy',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(way === undefined ? {} : { way }),
+    });
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
 

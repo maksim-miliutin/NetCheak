@@ -12,6 +12,41 @@ export interface Words
 {
     chain: Record<string, string>;
     throughTunnel: (names: string) => string;
+    measureMtu: string;
+    checkSixth: string;
+    whoCuts: string;
+    tryEvasion: string;
+    tools: string;
+    startProxy: string;
+    wayNames: Record<string, string>;
+    answerNames: Record<string, string>;
+    useThisWay: (way: string) => string;
+    triedAll: string;
+    stopProxy: string;
+    proxyRunning: (port: number) => string;
+    proxyBlind: string;
+    proxyPac: string;
+    proxyPacEmpty: string;
+    trying: string;
+    evasion: Record<string, string>;
+    checkThisSite: string;
+    dragMe: string;
+    bookmarklet: string;
+    checking: string;
+    culprit: Record<string, string>;
+    whatLeaves: string;
+    lookForUpdate: string;
+    upToDate: (version: string) => string;
+    newerExists: (latest: string) => string;
+    couldNotAsk: string;
+    onDemand: string;
+    neverDoes: string;
+    devices: (n: number) => string;
+    theRouter: string;
+    sixth: Record<string, string>;
+    measuring: string;
+    mtuFull: (mtu: number) => string;
+    mtuShort: (mtu: number, ordinary: number) => string;
     runChecks: string;
     measureSpeed: string;
     copyReport: string;
@@ -63,6 +98,65 @@ const EN: Words =
 {
     throughTunnel: (names) => `Traffic may be leaving through ${names}. `
         + 'What travels inside it cannot be seen from here.',
+
+    measureMtu: 'measure packet size',
+    checkSixth: 'Check IPv6',
+    whoCuts: 'who cuts it',
+    tryEvasion: 'would splitting help',
+    tools: 'Tools and disclosure',
+    startProxy: 'Start the splitting proxy',
+    answerNames:
+    {
+        'greeted': 'got through',
+        'complained': 'answered, but refused',
+        'reset': 'cut',
+        'silent': 'nothing came back',
+    },
+
+    useThisWay: (way) => `Start the proxy this way (${way})`,
+    triedAll: 'Each way of writing the hello, and what came back:',
+
+    wayNames:
+    {
+        'whole': 'sent whole',
+        'name': 'cut through the name',
+        'first-byte': 'one byte first',
+        'many': 'cut into four',
+        'records': 'split across two records',
+    },
+    stopProxy: 'Stop the proxy',
+    proxyRunning: (port) => `Point the browser at 127.0.0.1:${port} as an HTTP proxy. `
+        + 'Every connection through it has its first write cut, so no single packet '
+        + 'carries the name of the site.',
+    proxyBlind: 'It relays bytes without reading them: the traffic stays encrypted end '
+        + 'to end and this holds no key to any of it.',
+    proxyPac: 'Better still, give the browser this address as its automatic proxy '
+        + 'configuration. Only the sites that needed a different way of writing go '
+        + 'through the proxy; the rest of your traffic never touches it.',
+    proxyPacEmpty: 'Nothing has needed the proxy yet, so this file sends everything '
+        + 'straight out. Try a site that will not open, and it will be added.',
+    trying: 'trying…',
+    checkThisSite: 'Check this site',
+    dragMe: 'Make a bookmark with this as its address. On a page that will not open, '
+        + 'press it: this tool opens with that site already being checked. Nothing '
+        + 'watches your browsing — the bookmark simply carries the address across.',
+    bookmarklet: 'check with netcheck',
+    checking: 'checking…',
+    whatLeaves: 'What leaves this machine',
+    lookForUpdate: 'Look for a newer version',
+    upToDate: (version) => `This is version ${version}, and it is the newest.`,
+    newerExists: (latest) => `Version ${latest} is out. Nothing updates on its own: `
+        + 'download it when it suits you.',
+    couldNotAsk: 'Could not ask whether a newer version exists.',
+    onDemand: 'only when asked',
+    neverDoes: 'What it never does',
+    devices: (n) => `${n} devices on this network`,
+    theRouter: 'the router',
+    measuring: 'measuring…',
+    mtuFull: (mtu) => `Packets of the usual ${mtu} bytes cross whole.`,
+    mtuShort: (mtu, ordinary) => `Only ${mtu} bytes cross whole, where ${ordinary} is `
+        + 'usual. Pages open and large files stall, because anything bigger is dropped '
+        + 'rather than broken up.',
 
     chain:
     {
@@ -216,6 +310,41 @@ const EN: Words =
         ],
     },
 
+    evasion:
+    {
+        'helps': 'A hello sent whole is stopped, and one of the ways of writing it '
+            + 'differently gets through. Which one is below, and the proxy can be '
+            + 'started that way.',
+        'no-block': 'The hello gets through whole, so there is nothing here to get past.',
+        'no-help': 'The hello is stopped whether it is sent whole or in pieces, so '
+            + 'splitting the write is not the way around this one.',
+    },
+
+    culprit:
+    {
+        'open': 'The connection opens and completes, so nothing here objects to it.',
+        'name-read': 'The connection opens, survives a handshake that does not say '
+            + 'which site is wanted, and dies when it does. Something along the way '
+            + 'reads the name and objects to it.',
+        'address-blocked': 'The handshake dies whether the site is named or not, so '
+            + 'the objection is to the address itself.',
+        'site-down': 'Nothing is listening at that address, which is the site being '
+            + 'down rather than anything cutting it.',
+        'unclear': 'The attempts did not differ in a way that says who cut it.',
+    },
+
+    sixth:
+    {
+        'absent': 'This machine has no address of the sixth version, so nothing tries '
+            + 'to use it. That is ordinary and costs nothing.',
+        'link-local-only': 'An address was found but nothing was tried against it.',
+        'working': 'The sixth version carries traffic, so a browser reaching for it '
+            + 'first loses no time.',
+        'broken': 'This machine holds an address of the sixth version that leads '
+            + 'nowhere. A browser tries that family first and waits for it to fail, '
+            + 'so every page opens slowly for a reason nothing on screen explains.',
+    },
+
     dns:
     {
         'agree': 'Your resolver answers the same as a public one.',
@@ -237,6 +366,65 @@ const RU: Words =
 {
     throughTunnel: (names) => `Трафик может уходить через ${names}. `
         + 'Что идёт внутри, отсюда не видно.',
+
+    measureMtu: 'измерить размер пакета',
+    checkSixth: 'Проверить IPv6',
+    whoCuts: 'кто режет',
+    tryEvasion: 'поможет ли дробление',
+    tools: 'Средства и раскрытие',
+    startProxy: 'Включить дробящий прокси',
+    answerNames:
+    {
+        'greeted': 'прошло',
+        'complained': 'ответили отказом',
+        'reset': 'оборвали',
+        'silent': 'ничего не вернулось',
+    },
+
+    useThisWay: (way) => `Включить прокси этим способом (${way})`,
+    triedAll: 'Каждый способ записи приветствия и что вернулось:',
+
+    wayNames:
+    {
+        'whole': 'целиком',
+        'name': 'разрез по имени',
+        'first-byte': 'сначала один байт',
+        'many': 'на четыре части',
+        'records': 'двумя записями',
+    },
+    stopProxy: 'Выключить прокси',
+    proxyRunning: (port) => `Укажите в браузере HTTP-прокси 127.0.0.1:${port}. У каждого `
+        + 'соединения через него первая запись разрезается, поэтому имя сайта не '
+        + 'попадает целиком ни в один пакет.',
+    proxyBlind: 'Байты переносятся без чтения: трафик остаётся зашифрованным от конца '
+        + 'до конца, и ключа к нему здесь нет.',
+    proxyPac: 'Лучше указать браузеру этот адрес как файл автонастройки прокси. Через '
+        + 'прокси пойдут только сайты, которым понадобился другой способ записи, '
+        + 'остальной трафик его вообще не коснётся.',
+    proxyPacEmpty: 'Пока прокси никому не понадобился, и файл отправляет всё напрямую. '
+        + 'Проверьте сайт, который не открывается, и он туда добавится.',
+    trying: 'пробую…',
+    checkThisSite: 'Проверить этот сайт',
+    dragMe: 'Создайте закладку с этим адресом. На странице, которая не открывается, '
+        + 'нажмите её: инструмент откроется с уже начатой проверкой этого сайта. Ни за '
+        + 'чем следить не нужно — закладка просто переносит адрес.',
+    bookmarklet: 'проверить в netcheck',
+    checking: 'проверяю…',
+    whatLeaves: 'Что уходит с этой машины',
+    lookForUpdate: 'Проверить, есть ли новая версия',
+    upToDate: (version) => `Это версия ${version}, и она самая свежая.`,
+    newerExists: (latest) => `Вышла версия ${latest}. Само ничего не обновляется — `
+        + 'скачайте, когда будет удобно.',
+    couldNotAsk: 'Не удалось спросить про новую версию.',
+    onDemand: 'только по нажатию',
+    neverDoes: 'Чего он не делает никогда',
+    devices: (n) => `устройств в этой сети: ${n}`,
+    theRouter: 'роутер',
+    measuring: 'измеряю…',
+    mtuFull: (mtu) => `Пакеты обычных ${mtu} байт проходят целиком.`,
+    mtuShort: (mtu, ordinary) => `Целиком проходит только ${mtu} байт вместо обычных `
+        + `${ordinary}. Страницы открываются, а крупные файлы виснут: всё, что больше, `
+        + 'отбрасывается вместо дробления.',
 
     chain:
     {
@@ -389,6 +577,38 @@ const RU: Words =
             'Оставьте проверку идти: история ниже покажет, приходит ли это волнами',
             'Если да, скопируйте отчёт в обращение к провайдеру',
         ],
+    },
+
+    evasion:
+    {
+        'helps': 'Приветствие целиком не проходит, а один из способов записи — '
+            + 'проходит. Какой именно, видно ниже, и прокси можно включить им же.',
+        'no-block': 'Приветствие проходит целиком, значит обходить нечего.',
+        'no-help': 'Приветствие не проходит ни целиком, ни по частям — дроблением эту '
+            + 'блокировку не обойти.',
+    },
+
+    culprit:
+    {
+        'open': 'Соединение открывается и проходит целиком, значит здесь ему никто не мешает.',
+        'name-read': 'Соединение открывается, переживает рукопожатие без указания сайта '
+            + 'и обрывается, когда сайт назван. Кто-то по пути читает имя и возражает.',
+        'address-blocked': 'Рукопожатие обрывается и с именем, и без него, значит '
+            + 'возражают против самого адреса.',
+        'site-down': 'По этому адресу никто не слушает — сайт лежит, а не режется.',
+        'unclear': 'Попытки не разошлись так, чтобы можно было назвать виновника.',
+    },
+
+    sixth:
+    {
+        'absent': 'У этой машины нет адреса шестой версии, значит её никто и не '
+            + 'пробует. Это обычное дело и ничего не стоит.',
+        'link-local-only': 'Адрес найден, но проверить его не пробовали.',
+        'working': 'Шестая версия возит трафик, так что браузер, который тянется к ней '
+            + 'первой, ничего не теряет.',
+        'broken': 'У этой машины есть адрес шестой версии, ведущий в никуда. Браузер '
+            + 'пробует эту семью первой и ждёт отказа, поэтому каждая страница '
+            + 'открывается с задержкой, а на экране этому нет объяснения.',
     },
 
     dns:

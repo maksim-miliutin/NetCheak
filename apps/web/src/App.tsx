@@ -5,7 +5,16 @@ import
     getHistory,
     getReport,
     getStatus,
+    findCut,
+    toggleProxy,
+    tryEvasion,
+    getNeighbours,
+    checkUpdate,
+    getOutbound,
+    getProxy,
     getTunnels,
+    checkSixth,
+    measureMtu,
     runCheck,
     runDns,
     runSpeed,
@@ -22,6 +31,14 @@ import type
     DnsCheck,
     History,
     SpeedRow,
+    Path,
+    Cut,
+    Evasion,
+    Household,
+    Newer,
+    Outbound,
+    ProxyState,
+    SixthCheck,
     Trace,
     Tunnels,
     Status,
@@ -29,6 +46,18 @@ import type
     TlsCheck,
     Verdict,
 } from './types';
+
+/**
+ * A link that opens this tool with whatever site the browser is on. It reads nothing
+ * and stays nowhere: pressing it hands over one address and stops.
+ */
+function bookmarklet(): string
+{
+    const here = `${window.location.origin}${window.location.pathname}`;
+
+    return `javascript:location.href=${JSON.stringify(here)}`
+        + '+"?check="+encodeURIComponent(location.host)';
+}
 
 export function App()
 {
@@ -46,6 +75,14 @@ export function App()
     const [now, setNow] = useState(() => Date.now());
     const [opened, setOpened] = useState<string | null>(null);
     const [traces, setTraces] = useState<Record<number, Trace | 'running'>>({});
+    const [paths, setPaths] = useState<Record<number, Path | 'running'>>({});
+    const [sixth, setSixth] = useState<SixthCheck | null>(null);
+    const [house, setHouse] = useState<Household | null>(null);
+    const [cuts, setCuts] = useState<Record<number, Cut | 'running'>>({});
+    const [leaves, setLeaves] = useState<Outbound | null>(null);
+    const [newer, setNewer] = useState<Newer | null>(null);
+    const [proxy, setProxy] = useState<ProxyState | null>(null);
+    const [evasions, setEvasions] = useState<Record<number, Evasion | 'running'>>({});
     const [copied, setCopied] = useState(false);
     const [tongue, setTongue] = useState(() => pickTongue(navigator.languages ?? ['en']));
 
@@ -56,12 +93,14 @@ export function App()
     {
         try
         {
-            const [next, past, through] = await Promise.all(
-                [getStatus(), getHistory(), getTunnels()]);
+            const [next, past, through, others, relay] = await Promise.all(
+                [getStatus(), getHistory(), getTunnels(), getNeighbours(), getProxy()]);
 
             setStatus(next);
             setHistory(past.targets);
             setTunnels(through);
+            setHouse(others);
+            setProxy(relay);
             setError(null);
         }
         catch (err)
@@ -77,6 +116,34 @@ export function App()
     useEffect(() =>
     {
         void load();
+    }, [load]);
+
+    // A site carried in from the bookmark: watched and checked at once, so pressing
+    // the button on a page that will not open lands on an answer rather than a form.
+    useEffect(() =>
+    {
+        const asked = new URLSearchParams(window.location.search).get('check');
+
+        if (asked === null || asked === '')
+        {
+            return;
+        }
+
+        window.history.replaceState({}, '', window.location.pathname);
+
+        void (async () =>
+        {
+            try
+            {
+                await watchTarget(asked);
+                await load();
+                await latest.current?.();
+            }
+            catch (err)
+            {
+                setError((err as Error).message);
+            }
+        })();
     }, [load]);
 
 
@@ -147,15 +214,25 @@ export function App()
             setStep(say.askingResolvers);
             setDns(await runDns());
 
+            setStep(say.checkSixth);
+            setSixth(await checkSixth());
+
             setStep(say.readingCertificates);
 
             const result = await runTls();
 
-            setTls(result.checks);
+            setTls(result.checks ?? []);
             await load();
-            setStatus((current) => current === null
-                ? current
-                : { ...current, verdict: result.verdict });
+
+            // An answer that arrives without a verdict leaves the old headline
+            // standing. A page gone blank is a worse diagnosis than a stale sentence,
+            // and this one is read while the network is misbehaving.
+            if (result.verdict != null)
+            {
+                setStatus((current) => current === null
+                    ? current
+                    : { ...current, verdict: result.verdict });
+            }
 
             setError(null);
         }
@@ -233,6 +310,118 @@ export function App()
             await navigator.clipboard.writeText(await getReport());
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+    };
+
+    const sizes = async (id: number, host: string): Promise<void> =>
+    {
+        setPaths((current) => ({ ...current, [id]: 'running' }));
+
+        try
+        {
+            const found = await measureMtu(host);
+
+            setPaths((current) => ({ ...current, [id]: found }));
+        }
+        catch (err)
+        {
+            setPaths((current) =>
+            {
+                const without = { ...current };
+                delete without[id];
+
+                return without;
+            });
+
+            setError((err as Error).message);
+        }
+    };
+
+    const whoCuts = async (id: number, host: string): Promise<void> =>
+    {
+        setCuts((current) => ({ ...current, [id]: 'running' }));
+
+        try
+        {
+            const found = await findCut(host);
+
+            setCuts((current) => ({ ...current, [id]: found }));
+        }
+        catch (err)
+        {
+            setCuts((current) =>
+            {
+                const without = { ...current };
+                delete without[id];
+
+                return without;
+            });
+
+            setError((err as Error).message);
+        }
+    };
+
+    // Asked for, never habitual: a tool that promises no telemetry cannot phone home
+    // on its own, however good the reason.
+    const lookForUpdate = async (): Promise<void> =>
+    {
+        try
+        {
+            setNewer(await checkUpdate());
+            setLeaves(null);
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+    };
+
+    const wouldSplit = async (id: number, host: string): Promise<void> =>
+    {
+        setEvasions((current) => ({ ...current, [id]: 'running' }));
+
+        try
+        {
+            const found = await tryEvasion(host);
+
+            setEvasions((current) => ({ ...current, [id]: found }));
+        }
+        catch (err)
+        {
+            setEvasions((current) =>
+            {
+                const without = { ...current };
+                delete without[id];
+
+                return without;
+            });
+
+            setError((err as Error).message);
+        }
+    };
+
+    const switchProxy = async (way?: string): Promise<void> =>
+    {
+        try
+        {
+            setProxy(await toggleProxy(way));
+            setLeaves(null);
+        }
+        catch (err)
+        {
+            setError((err as Error).message);
+        }
+    };
+
+    const showLeaves = async (): Promise<void> =>
+    {
+        try
+        {
+            setLeaves(leaves === null ? await getOutbound() : null);
         }
         catch (err)
         {
@@ -331,6 +520,32 @@ export function App()
 
             {/* A tunnel changes which road the traffic takes, and a check that looks
                 strange often looks that way because it left through one. */}
+            {/* An address that leads nowhere is the finding; having none is ordinary
+                and says nothing worth a line. */}
+            {sixth !== null && sixth.state !== 'absent' && (
+                <p className={sixth.state === 'broken' ? 'reading small blamed' : 'reading small'}>
+                    {say.sixth[sixth.state]}
+                </p>
+            )}
+
+            {/* Everything else already on this network. A house with a dozen devices
+                and an evening of stuttering usually has its answer here. */}
+            {house !== null && house.neighbours.length > 0 && (
+                <details className="reading house">
+                    <summary className="small">{say.devices(house.neighbours.length)}</summary>
+
+                    <ul className="others">
+                        {house.neighbours.map((one) => (
+                            <li key={one.address}>
+                                <span>{one.address}</span>
+                                <span className="host">{one.hardware}</span>
+                                {one.gateway && <span className="host">{say.theRouter}</span>}
+                            </li>
+                        ))}
+                    </ul>
+                </details>
+            )}
+
             {tunnels !== null && tunnels.tunnelling.length > 0 && (
                 <p className="reading small">
                     {say.throughTunnel(tunnels.tunnelling.join(', '))}
@@ -348,10 +563,100 @@ export function App()
                             say={say}
                             trace={traces[target.targetId] ?? null}
                             onTrace={trace}
+                            path={paths[target.targetId] ?? null}
+                            onMeasure={sizes}
+                            cut={cuts[target.targetId] ?? null}
+                            onCut={whoCuts}
+                            evasion={evasions[target.targetId] ?? null}
+                            onEvade={wouldSplit}
+                            onUseWay={switchProxy}
                             forget={forget}
                         />
                     ))}
             </ul>
+
+            {/* Built from the values the code uses, so it cannot drift from what the
+                tool actually does. */}
+            {/* Four grey links loose in the page read as leftovers. Folded together
+                they read as a drawer somebody may open. */}
+            <details className="tools">
+                <summary className="small">{say.tools}</summary>
+
+                <p className="small">
+                    <button type="button" className="ghost" onClick={showLeaves}>
+                        {say.whatLeaves}
+                    </button>
+
+                    <button type="button" className="ghost spaced" onClick={lookForUpdate}>
+                        {say.lookForUpdate}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="ghost spaced"
+                        onClick={() => void switchProxy()}
+                    >
+                        {proxy?.running === true ? say.stopProxy : say.startProxy}
+                    </button>
+                </p>
+
+                {proxy?.running === true && proxy.port !== null && (
+                    <div className="small">
+                        <p>{say.proxyRunning(proxy.port)}</p>
+                        <p>{say.proxyBlind}</p>
+
+                        {/* Routing only what needs it means less of a person's
+                            traffic passes through this tool, not more. */}
+                        <p>
+                            <code className="carry">
+                                {`${window.location.origin}/api/proxy.pac`}
+                            </code>
+                            {' '}{say.proxyPac}
+                        </p>
+
+                        {needsProxy(evasions) === 0 && <p>{say.proxyPacEmpty}</p>}
+                    </div>
+                )}
+
+                {newer !== null && (
+                <p className={newer.behind ? 'small blamed' : 'small'}>
+                    {newer.error !== null && say.couldNotAsk}
+                    {newer.error === null && newer.behind && say.newerExists(newer.latest ?? '')}
+                    {newer.error === null && !newer.behind && say.upToDate(newer.current)}
+                </p>
+            )}
+
+                {leaves !== null && (
+                <div className="leaves small">
+                    <ul>
+                        {leaves.errands.map((errand) => (
+                            <li key={errand.where}>
+                                <b>{errand.where}</b> — {errand.why}
+                                {errand.onDemand && <span className="host">
+                                    {' '}({say.onDemand})</span>}
+                            </li>
+                        ))}
+                    </ul>
+
+                    <p><b>{say.neverDoes}</b></p>
+
+                    <ul>
+                        {leaves.never.map((one) => <li key={one}>{one}</li>)}
+                    </ul>
+                </div>
+            )}
+
+                {/* Carrying the address across is all it does: no extension, no
+                    proxy, nothing watching what is open. */}
+                <p className="small">
+                {/* Handed over as text to copy rather than a link to drag: React
+                    refuses to render a javascript: address, and it is right to —
+                    that shape is how pages get talked into running somebody else's
+                    code. */}
+                    <code className="carry">{bookmarklet()}</code>
+                    {' '}{say.dragMe}
+                </p>
+            </details>
 
             <div className="watch">
                 <input
@@ -559,13 +864,21 @@ const LANE_HEIGHT = 40;
  * sampling over time since the first version; showing a moment instead of the run of
  * it threw most of what it knows away.
  */
-function Lane({ target, past, say, trace, onTrace, forget }:
+function Lane({ target, past, say, trace, onTrace, path, onMeasure, cut, onCut,
+    evasion, onEvade, onUseWay, forget }:
 {
     target: StatusRow;
     say: Words;
     past: History | null;
     trace: Trace | 'running' | null;
     onTrace: (id: number, host: string) => void;
+    path: Path | 'running' | null;
+    onMeasure: (id: number, host: string) => void;
+    cut: Cut | 'running' | null;
+    onCut: (id: number, host: string) => void;
+    evasion: Evasion | 'running' | null;
+    onEvade: (id: number, host: string) => void;
+    onUseWay: (way: string) => void;
     forget: (id: number) => void;
 })
 {
@@ -611,6 +924,13 @@ function Lane({ target, past, say, trace, onTrace, forget }:
                 <span>{say.loss} <b>{format(target.lossPercent, '%')}</b></span>
                 <span>{say.average} <b>{format(target.averageMs, ' ms')}</b></span>
                 <span>{say.jitter} <b>{format(target.jitterMs, ' ms')}</b></span>
+                {runs.length > 0
+                    && <span className="kept">{say.checksKept(runs.length)}</span>}
+            </div>
+
+            {/* Two actions crowded the numbers into two lines each; they stand on
+                their own row instead. */}
+            <div className="deeper">
                 <button
                     type="button"
                     className="ghost"
@@ -620,12 +940,135 @@ function Lane({ target, past, say, trace, onTrace, forget }:
                     {trace === 'running' ? say.tracing : say.tracePath}
                 </button>
 
-                {runs.length > 0
-                    && <span className="kept">{say.checksKept(runs.length)}</span>}
+                <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => onMeasure(target.targetId, target.host)}
+                    disabled={path === 'running'}
+                >
+                    {path === 'running' ? say.measuring : say.measureMtu}
+                </button>
+
+                <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => onCut(target.targetId, target.host)}
+                    disabled={cut === 'running'}
+                >
+                    {cut === 'running' ? say.checking : say.whoCuts}
+                </button>
+
+                <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => onEvade(target.targetId, target.host)}
+                    disabled={evasion === 'running'}
+                >
+                    {evasion === 'running' ? say.trying : say.tryEvasion}
+                </button>
             </div>
 
             {trace !== null && trace !== 'running' && <Path trace={trace} say={say} />}
+
+            {path !== null && path !== 'running' && <Sizes path={path} say={say} />}
+
+            {evasion !== null && evasion !== 'running' && (
+                <Ways evasion={evasion} say={say} onUseWay={onUseWay} />
+            )}
+
+            {cut !== null && cut !== 'running' && (
+                <p className={cut.culprit === 'open' ? 'path small' : 'path small blamed'}>
+                    {say.culprit[cut.culprit]}
+                </p>
+            )}
         </li>
+    );
+}
+
+/**
+ * The number alone says nothing. What matters is how far below the ordinary size it
+ * sits, and what a person notices when it does.
+ */
+/** How many sites have turned out to need the proxy, so the file can say so. */
+function needsProxy(evasions: Record<number, Evasion | 'running'>): number
+{
+    return Object.values(evasions)
+        .filter((one): one is Evasion => one !== 'running' && one.splittingHelps).length;
+}
+
+/**
+ * What each way of writing got back, and the one to use. Naming the working way and
+ * leaving the person to find the switch themselves would be half an answer.
+ */
+function Ways({ evasion, say, onUseWay }:
+{
+    evasion: Evasion;
+    say: Words;
+    onUseWay: (way: string) => void;
+})
+{
+    return (
+        <div className="path small">
+            <p className={evasion.splittingHelps ? 'blamed' : undefined}>
+                {say.evasion[readEvasion(evasion)]}
+            </p>
+
+            {evasion.tried.length > 0 && (
+                <ul className="ways">
+                    {evasion.tried.map((one) => (
+                        <li
+                            key={one.way}
+                            className={one.answer === 'greeted' ? 'through' : undefined}
+                        >
+                            <span>{say.wayNames[one.way] ?? one.way}</span>
+                            <span>{say.answerNames[one.answer] ?? one.answer}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {evasion.works !== null && (
+                <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => onUseWay(evasion.works ?? '')}
+                >
+                    {say.useThisWay(say.wayNames[evasion.works] ?? evasion.works)}
+                </button>
+            )}
+        </div>
+    );
+}
+
+/** Three outcomes, and only one of them is worth a person changing anything about. */
+function readEvasion(evasion: Evasion): string
+{
+    if (evasion.splittingHelps)
+    {
+        return 'helps';
+    }
+
+    return evasion.whole === 'greeted' ? 'no-block' : 'no-help';
+}
+
+function Sizes({ path, say }: { path: Path; say: Words })
+{
+    if (path.error !== null)
+    {
+        return <p className="path small">{path.error}</p>;
+    }
+
+    if (path.mtu === null)
+    {
+        return <p className="path small">{say.emptyTrace}</p>;
+    }
+
+    const short = path.mtu < path.ordinary;
+
+    return (
+        <p className={short ? 'path small blamed' : 'path small'}>
+            {short ? say.mtuShort(path.mtu, path.ordinary) : say.mtuFull(path.mtu)}
+        </p>
     );
 }
 

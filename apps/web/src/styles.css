@@ -403,7 +403,8 @@ input:focus-visible
 .numbers
 {
     display: flex;
-    gap: 18px;
+    flex-wrap: wrap;
+    gap: 6px 18px;
     align-items: baseline;
     margin-top: 8px;
     color: var(--ink-soft);
@@ -663,6 +664,144 @@ input:focus-visible
 .hop.silent .took
 {
     color: #ad2b23;
+}
+
+/* A finding is not a footnote, wherever it is written. */
+.blamed
+{
+    color: #ad2b23;
+}
+
+/* Folded away: the list matters when somebody goes looking for it and is noise
+   otherwise. */
+.house summary
+{
+    cursor: pointer;
+}
+
+.others
+{
+    padding: 0;
+    margin: 10px 0 0;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    list-style: none;
+}
+
+.others li
+{
+    display: flex;
+    gap: 14px;
+    padding: 3px 0;
+}
+
+.others li span:first-child
+{
+    min-width: 15ch;
+}
+
+/* A thing to drag, so it has to look like one rather than like prose. */
+.carry
+{
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+    user-select: all;
+    padding: 4px 10px;
+    margin-right: 6px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    background: var(--paper);
+    border: 1px solid #cdd4da;
+    border-radius: 6px;
+    cursor: text;
+}
+
+.spaced
+{
+    margin-left: 18px;
+}
+
+/* A drawer rather than a pile: these are for somebody who came looking. */
+/* One line per way, so the reader can see which got through rather than take the
+   sentence above on faith. */
+.ways
+{
+    padding: 0;
+    margin: 8px 0 10px;
+    list-style: none;
+}
+
+.ways li
+{
+    display: flex;
+    gap: 14px;
+    padding: 2px 0;
+    color: var(--ink-faint);
+}
+
+.ways li span:first-child
+{
+    min-width: 22ch;
+}
+
+.ways .through
+{
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.tools
+{
+    padding: 16px 0 4px;
+    margin-top: 28px;
+    border-top: 1px solid var(--rule);
+}
+
+.tools summary
+{
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.tools > p
+{
+    margin-top: 14px;
+}
+
+.leaves
+{
+    padding: 14px 16px;
+    margin-top: 10px;
+    background: #f6f8f9;
+    border-radius: 8px;
+}
+
+.leaves ul
+{
+    padding-left: 18px;
+    margin: 0 0 10px;
+}
+
+.leaves li
+{
+    margin-bottom: 4px;
+}
+
+.leaves p
+{
+    margin: 0 0 6px;
+}
+
+.deeper
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 8px;
 }
 
 .ghost
