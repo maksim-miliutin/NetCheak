@@ -18,6 +18,7 @@ export interface Words
     tryEvasion: string;
     tools: string;
     startProxy: string;
+    pickWay: string;
     wayNames: Record<string, string>;
     answerNames: Record<string, string>;
     useThisWay: (way: string) => string;
@@ -26,6 +27,7 @@ export interface Words
     proxyRunning: (port: number) => string;
     proxyBlind: string;
     proxyPac: string;
+    proxyOverHttps: string;
     proxyPacEmpty: string;
     trying: string;
     evasion: Record<string, string>;
@@ -105,6 +107,7 @@ const EN: Words =
     tryEvasion: 'would splitting help',
     tools: 'Tools and disclosure',
     startProxy: 'Start the splitting proxy',
+    pickWay: 'writing the hello',
     answerNames:
     {
         'greeted': 'got through',
@@ -130,6 +133,9 @@ const EN: Words =
         + 'carries the name of the site.',
     proxyBlind: 'It relays bytes without reading them: the traffic stays encrypted end '
         + 'to end and this holds no key to any of it.',
+    proxyOverHttps: 'Names going through it are looked up over HTTPS. Splitting the '
+        + 'write answers a filter reading the name; this answers a resolver handing '
+        + 'back somebody else\'s address, which is a different block entirely.',
     proxyPac: 'Better still, give the browser this address as its automatic proxy '
         + 'configuration. Only the sites that needed a different way of writing go '
         + 'through the proxy; the rest of your traffic never touches it.',
@@ -373,6 +379,7 @@ const RU: Words =
     tryEvasion: 'поможет ли дробление',
     tools: 'Средства и раскрытие',
     startProxy: 'Включить дробящий прокси',
+    pickWay: 'способ записи',
     answerNames:
     {
         'greeted': 'прошло',
@@ -398,6 +405,9 @@ const RU: Words =
         + 'попадает целиком ни в один пакет.',
     proxyBlind: 'Байты переносятся без чтения: трафик остаётся зашифрованным от конца '
         + 'до конца, и ключа к нему здесь нет.',
+    proxyOverHttps: 'Имена, идущие через него, разрешаются по HTTPS. Дробление записи '
+        + 'отвечает фильтру, читающему имя; это отвечает резольверу, отдающему чужой '
+        + 'адрес, — а это совсем другая блокировка.',
     proxyPac: 'Лучше указать браузеру этот адрес как файл автонастройки прокси. Через '
         + 'прокси пойдут только сайты, которым понадобился другой способ записи, '
         + 'остальной трафик его вообще не коснётся.',

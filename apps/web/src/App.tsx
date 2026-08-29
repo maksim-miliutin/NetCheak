@@ -82,6 +82,7 @@ export function App()
     const [leaves, setLeaves] = useState<Outbound | null>(null);
     const [newer, setNewer] = useState<Newer | null>(null);
     const [proxy, setProxy] = useState<ProxyState | null>(null);
+    const [chosenWay, setChosenWay] = useState('name');
     const [evasions, setEvasions] = useState<Record<number, Evasion | 'running'>>({});
     const [copied, setCopied] = useState(false);
     const [tongue, setTongue] = useState(() => pickTongue(navigator.languages ?? ['en']));
@@ -408,7 +409,14 @@ export function App()
     {
         try
         {
-            setProxy(await toggleProxy(way));
+            const state = await toggleProxy(way);
+
+            setProxy(state);
+
+            if (state.way !== null)
+            {
+                setChosenWay(state.way);
+            }
             setLeaves(null);
         }
         catch (err)
@@ -434,7 +442,9 @@ export function App()
     return (
         <div data-state={status?.verdict.level ?? 'unknown'}>
             <div className="band">
-                <div className="inner">
+                <div className="inner withface">
+                    <img className="roflanich" src="/roflanich.png" alt="" />
+
                     <header className="masthead">
                         <b>netcheck</b>
 
@@ -594,16 +604,37 @@ export function App()
                     <button
                         type="button"
                         className="ghost spaced"
-                        onClick={() => void switchProxy()}
+                        onClick={() => void switchProxy(chosenWay)}
                     >
                         {proxy?.running === true ? say.stopProxy : say.startProxy}
                     </button>
+
+                    {/* Five ways get past five different filters, and which one is
+                        needed cannot be known from here without trying. */}
+                    {proxy?.running !== true && (
+                        <label className="picker">
+                            {say.pickWay}
+
+                            <select
+                                value={chosenWay}
+                                onChange={(event) => setChosenWay(event.target.value)}
+                            >
+                                {(proxy?.ways ?? []).map((way) => (
+                                    <option key={way} value={way}>
+                                        {say.wayNames[way] ?? way}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
                 </p>
 
                 {proxy?.running === true && proxy.port !== null && (
                     <div className="small">
                         <p>{say.proxyRunning(proxy.port)}</p>
                         <p>{say.proxyBlind}</p>
+
+                        {proxy.overHttps && <p>{say.proxyOverHttps}</p>}
 
                         {/* Routing only what needs it means less of a person's
                             traffic passes through this tool, not more. */}

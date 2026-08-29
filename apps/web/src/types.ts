@@ -234,6 +234,7 @@ export interface ProxyState
     port: number | null;
     way: string | null;
     ways: string[];
+    overHttps: boolean;
 }
 
 export interface Tried

@@ -46,9 +46,21 @@ body
 
 .band
 {
-    padding: 34px 24px 30px;
+    padding: 44px 24px 36px;
     background: var(--tint);
     transition: background 240ms ease;
+}
+
+/* A hairline where the tint stops, so the two halves of the page meet rather than
+   simply abut. */
+.band::after
+{
+    display: block;
+    max-width: 874px;
+    height: 1px;
+    margin: 36px auto -36px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    content: "";
 }
 
 @media (prefers-reduced-motion: reduce)
@@ -65,6 +77,37 @@ body
     margin: 0 auto;
 }
 
+/* The face sits beside the verdict rather than above it, so the sentence still starts
+   where the eye lands. The band widens by what the face takes, or the words pay for
+   it: the chain wrapped to two lines and the headline lost a word to each turn. */
+.withface
+{
+    display: grid;
+    max-width: 874px;
+    grid-template-columns: 128px 1fr;
+    gap: 0 26px;
+    align-items: start;
+}
+
+.roflanich
+{
+    grid-row: 1 / 4;
+    width: 128px;
+    height: 128px;
+    margin-top: 26px;
+}
+
+.withface > .masthead
+{
+    gap: 16px;
+    grid-column: 2;
+}
+
+.withface > *:not(.roflanich)
+{
+    grid-column: 2;
+}
+
 .masthead
 {
     display: flex;
@@ -72,6 +115,10 @@ body
     justify-content: space-between;
     margin-bottom: 26px;
 }
+
+
+
+
 
 .masthead b
 {
@@ -111,12 +158,12 @@ body
 h1
 {
     max-width: 20ch;
-    margin: 0 0 12px;
+    margin: 0 0 14px;
     color: var(--accent);
-    font-size: 34px;
+    font-size: 38px;
     font-weight: 700;
-    line-height: 1.15;
-    letter-spacing: -0.025em;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
 }
 
 .lead
@@ -200,28 +247,29 @@ h1
     display: none;
 }
 
-/* A link with something to say is the way to say it, so it looks like it can be
-   pressed rather than like a label that happens to be underlined. */
+/* A link with something to say is the way to say it. A dashed rule under a word reads
+   as a mistake in the text; a box around it reads as a thing to press. */
 .tellable button
 {
-    padding: 0;
+    padding: 2px 7px;
     color: inherit;
     font: inherit;
     background: none;
-    border: 0;
-    border-bottom: 1px dashed currentcolor;
+    border: 1px solid color-mix(in srgb, currentcolor 35%, transparent);
+    border-radius: 4px;
     cursor: pointer;
 }
 
 .tellable button:hover
 {
-    border-bottom-style: solid;
+    border-color: currentcolor;
 }
 
 .tellable button[aria-expanded="true"]
 {
-    border-bottom-style: solid;
-    border-bottom-width: 2px;
+    color: var(--paper);
+    background: var(--accent);
+    border-color: var(--accent);
 }
 
 .told
@@ -280,21 +328,23 @@ h1
 
 .sheet
 {
-    max-width: 720px;
-    padding: 0 24px 72px;
+    max-width: 874px;
+    padding: 0 24px 88px;
     margin: 0 auto;
 }
 
 .actions
 {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
-    padding: 22px 0;
+    align-items: center;
+    padding: 26px 0 24px;
 }
 
 button
 {
-    padding: 11px 20px;
+    padding: 11px 22px;
     color: var(--ink);
     font: inherit;
     font-size: 14px;
@@ -346,13 +396,14 @@ input:focus-visible
 }
 
 /* The switch sits with the actions because it is one: leaving the page checking is a
-   choice about what happens next, not a setting hidden away. */
+   choice about what happens next, not a setting hidden away. Pushed to the far edge it
+   loses that company on a narrow window, so it simply follows them. */
 .repeat
 {
     display: flex;
     gap: 8px;
     align-items: center;
-    margin-left: auto;
+    padding-left: 8px;
     color: var(--ink-soft);
     font-size: 14px;
     cursor: pointer;
@@ -388,8 +439,9 @@ input:focus-visible
 
 .name
 {
-    font-size: 16px;
-    font-weight: 550;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 .host
@@ -415,7 +467,8 @@ input:focus-visible
 .numbers b
 {
     color: var(--ink);
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 650;
 }
 
 
@@ -497,6 +550,8 @@ input:focus-visible
         padding: 22px 18px 24px;
     }
 
+
+
     .sheet
     {
         padding: 0 18px 56px;
@@ -568,10 +623,48 @@ input:focus-visible
     list-style: none;
 }
 
+/* At a narrow width the face takes room the headline needs, so it gives some back. */
+@media (max-width: 720px)
+{
+    .withface
+    {
+        grid-template-columns: 76px 1fr;
+        gap: 0 16px;
+    }
+
+    .roflanich
+    {
+        width: 76px;
+        height: 76px;
+        margin-top: 14px;
+    }
+}
+
+/* Everything below the band starts where the verdict does, not under the face. */
+.sheet > *
+{
+    margin-left: 154px;
+}
+
+/* Below this the face shrinks and sits over the text rather than beside it, so the
+   sheet has nothing to line up with. */
+@media (max-width: 600px)
+{
+    .sheet > *
+    {
+        margin-left: 0;
+    }
+}
+
 .lane
 {
-    padding: 14px 0 10px;
+    padding: 20px 0 14px;
     border-top: 1px solid var(--rule);
+}
+
+.lane:first-child
+{
+    border-top: 0;
 }
 
 .label
@@ -585,12 +678,13 @@ input:focus-visible
 {
     display: block;
     width: 100%;
-    height: 44px;
+    height: 46px;
+    margin-top: 2px;
     background:
         repeating-linear-gradient(90deg,
             transparent 0 calc(100% / 12 - 1px),
-            #eceff2 calc(100% / 12 - 1px) calc(100% / 12));
-    border-bottom: 1px solid #d7dde2;
+            #eef1f4 calc(100% / 12 - 1px) calc(100% / 12));
+    border-bottom: 1px solid #dde3e8;
 }
 
 .ink
@@ -754,6 +848,28 @@ input:focus-visible
     font-weight: 600;
 }
 
+/* The picker sits with the button it changes. */
+.picker
+{
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: 18px;
+    color: var(--ink-faint);
+    font-size: 13px;
+}
+
+.picker select
+{
+    padding: 4px 8px;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    background: var(--paper);
+    border: 1px solid #cdd4da;
+    border-radius: 6px;
+}
+
 .tools
 {
     padding: 16px 0 4px;
@@ -800,30 +916,32 @@ input:focus-visible
 {
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
-    margin-top: 8px;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 .ghost
 {
-    padding: 0;
     color: var(--ink-faint);
     font-size: 13px;
+    padding: 3px 9px;
     background: none;
-    border: 0;
-    border-bottom: 1px dashed currentcolor;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
     cursor: pointer;
 }
 
 .ghost:hover:not(:disabled)
 {
     color: var(--ink);
-    background: none;
+    background: #f6f8f9;
+    border-color: #cdd4da;
 }
 
 .ghost:disabled
 {
-    border-bottom-color: transparent;
+    color: var(--ink-faint);
+    border-color: var(--rule);
 }
 
 .kept
