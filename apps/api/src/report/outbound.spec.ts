@@ -64,6 +64,23 @@ describe('outbound', () =>
         expect(errand?.why).toContain('without being read');
     });
 
+    // Looking a name up over HTTPS sends it somewhere, and that somewhere is not the
+    // proxy.
+    it('says nothing about the encrypted resolvers while they are unused', () =>
+    {
+        const said = JSON.stringify(outbound([], false, 3128));
+
+        expect(said).not.toContain('cloudflare-dns');
+    });
+
+    it('names every encrypted resolver once they are used', () =>
+    {
+        const said = JSON.stringify(outbound([], false, 3128, true));
+
+        expect(said).toContain('cloudflare-dns.com');
+        expect(said).toContain('dns.google');
+    });
+
     it('says which errands wait for a button', () =>
     {
         const list = outbound([target('Mine', 'my.example')]);

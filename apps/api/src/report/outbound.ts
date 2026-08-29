@@ -1,6 +1,7 @@
 import type { TargetRow } from '../db/checks.repository.ts';
 import { CLOUDFLARE } from '../speed/transfer.ts';
 import { RELEASES_URL } from '../update/version.ts';
+import { RESOLVERS } from '../dns/doh.ts';
 
 export interface Errand
 {
@@ -28,6 +29,7 @@ export function outbound(
     targets: TargetRow[],
     updates = false,
     proxyPort: number | null = null,
+    overHttps = false,
 ): Outbound
 {
     const errands: Errand[] = targets
@@ -73,6 +75,21 @@ export function outbound(
                 + 'onward without being read',
             onDemand: true,
         });
+    }
+
+    // Names looked up over HTTPS travel to whichever resolver answers, and that is a
+    // different place than the proxy itself.
+    if (overHttps)
+    {
+        for (const resolver of RESOLVERS)
+        {
+            errands.push({
+                where: new URL(resolver).host,
+                why: 'names are looked up here over HTTPS, so a hijacked plain answer '
+                    + 'cannot reach them',
+                onDemand: true,
+            });
+        }
     }
 
     return {

@@ -86,6 +86,27 @@ describe('splitPoint', () =>
 
 describe('the proxy', () =>
 {
+    // An address has nothing to resolve, and asking a resolver about one is a round
+    // trip spent to be told what was already known.
+    it('does not look up a literal address', async () =>
+    {
+        const upstream = await listening();
+        const asked: string[] = [];
+
+        const proxy = startProxy({ port: 0, gapMs: 20 });
+        running.push(proxy);
+
+        await new Promise((done) => proxy.once('listening', done));
+        const port = (proxy.address() as { port: number }).port;
+
+        const started = Date.now();
+        await through(port, '127.0.0.1', upstream.port, buildHello('example.com'));
+
+        // A lookup would add a round trip to somewhere outside; this must not.
+        expect(Date.now() - started).toBeLessThan(2000);
+        expect(asked).toEqual([]);
+    });
+
     /** An upstream that records how many separate writes reached it. */
     function listening(): Promise<{ port: number; chunks: Buffer[] }>
     {

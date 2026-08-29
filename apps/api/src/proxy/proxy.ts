@@ -1,5 +1,7 @@
 import { createServer, connect, type Socket, type Server } from 'node:net';
 import { writeAs, type Way } from './ways.ts';
+import { resolveOverHttps } from '../dns/doh.ts';
+import { isAddress } from '../targets/address.ts';
 
 export interface ProxyOptions
 {
@@ -8,6 +10,8 @@ export interface ProxyOptions
     gapMs?: number;
     /** Which way to write the first record; the rest are relayed untouched. */
     way?: Way;
+    /** Resolve names over HTTPS, so a hijacked plain answer cannot reach them. */
+    overHttps?: boolean;
 }
 
 const DEFAULT_PORT = 3128;
@@ -24,6 +28,7 @@ export function startProxy(options: ProxyOptions = {}): Server
 {
     const gapMs = options.gapMs ?? DEFAULT_GAP_MS;
     const way = options.way ?? 'name';
+    const overHttps = options.overHttps ?? true;
 
     const server = createServer((client) =>
     {
@@ -38,7 +43,7 @@ export function startProxy(options: ProxyOptions = {}): Server
                 return;
             }
 
-            open(client, asked.host, asked.port, gapMs, way);
+            void open(client, asked.host, asked.port, gapMs, way, overHttps);
         });
 
         client.on('error', () => client.destroy());
@@ -65,9 +70,22 @@ export function readConnect(head: string): { host: string; port: number } | null
         : null;
 }
 
-function open(client: Socket, host: string, port: number, gapMs: number, way: Way): void
+async function open(
+    client: Socket,
+    host: string,
+    port: number,
+    gapMs: number,
+    way: Way,
+    overHttps: boolean,
+): Promise<void>
 {
-    const upstream = connect(port, host, () =>
+    // Splitting the write gets past a filter reading the name. It does nothing about
+    // a resolver answering with an address of somebody else's choosing, and asking
+    // over HTTPS is what does: the question travels inside a connection nobody
+    // standing beside it can answer.
+    const where = overHttps && !isAddress(host) ? await addressFor(host) : host;
+
+    const upstream = connect(port, where, () =>
     {
         client.write('HTTP/1.1 200 Connection established\r\n\r\n');
 
@@ -113,4 +131,19 @@ function open(client: Socket, host: string, port: number, gapMs: number, way: Wa
     upstream.on('error', drop);
     client.on('error', drop);
     client.on('close', () => upstream.destroy());
+}
+
+/** The name itself when the lookup gives nothing: a worse road beats no road. */
+async function addressFor(host: string): Promise<string>
+{
+    try
+    {
+        const found = await resolveOverHttps(host);
+
+        return found.addresses[0] ?? host;
+    }
+    catch (err)
+    {
+        return host;
+    }
 }

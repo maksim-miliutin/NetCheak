@@ -55,6 +55,11 @@ It can also do the splitting, for a browser pointed at it. Starting the proxy op
 port on this machine; set the browser's HTTP proxy to it and every connection through
 it has its first write cut in two, so no single packet carries the name of the site.
 
+Names going through the proxy are looked up over HTTPS. Splitting the write answers a
+filter reading the name out of a packet; resolving over HTTPS answers a resolver
+handing back somebody else's address. They are separate blocks and the proxy handles
+either, or both.
+
 Better than pointing the browser at it outright is giving the browser the address of
 `/api/proxy.pac` as its automatic proxy configuration. Only the hosts that turned out
 to need a different way of writing go through the proxy; everything else goes straight

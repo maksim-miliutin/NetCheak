@@ -89,7 +89,9 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // Off until asked for. It relays bytes without looking at them, but it is still a
     // thing standing between the browser and the network, and that is not something
     // to switch on behind somebody's back.
-    let proxy: { server: ReturnType<typeof startProxy>; port: number; way: Way } | null = null;
+    let proxy:
+        { server: ReturnType<typeof startProxy>; port: number; way: Way; overHttps: boolean }
+        | null = null;
 
     // Hosts where a different way of writing was needed. Only these go through the
     // proxy: routing everything through it would put traffic there that has no
@@ -330,14 +332,14 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
      * packet carries the wanted name. On CONNECT it relays bytes blind: the traffic
      * stays encrypted end to end and this holds no key to any of it.
      */
-    app.post<{ Body: { way?: string } }>('/api/proxy', async (request) =>
+    app.post<{ Body: { way?: string; overHttps?: boolean } }>('/api/proxy', async (request) =>
     {
         if (proxy !== null)
         {
             proxy.server.close();
             proxy = null;
 
-            return { running: false, port: null, way: null, ways: WAYS };
+            return { running: false, port: null, way: null, ways: WAYS, overHttps: false };
         }
 
         const asked = request.body?.way;
@@ -345,9 +347,14 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
         const { port } = await choosePort(3128);
 
-        proxy = { server: startProxy({ port, way }), port, way };
+        // Splitting the write answers a filter reading the name; resolving over HTTPS
+        // answers a resolver giving somebody else's address. They are separate blocks
+        // and this can be told to handle either.
+        const overHttps = request.body?.overHttps ?? true;
 
-        return { running: true, port, way, ways: WAYS };
+        proxy = { server: startProxy({ port, way, overHttps }), port, way, overHttps };
+
+        return { running: true, port, way, ways: WAYS, overHttps };
     });
 
     app.get('/api/proxy', async () => ({
@@ -355,6 +362,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         port: proxy?.port ?? null,
         way: proxy?.way ?? null,
         ways: WAYS,
+        overHttps: proxy?.overHttps ?? false,
     }));
 
     /**
@@ -374,7 +382,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // promise about privacy written in prose goes stale the first time somebody adds
     // a call; this list cannot.
     app.get('/api/outbound', async () =>
-        outbound(repository.listTargets(), watchingForUpdates, proxy?.port ?? null));
+        outbound(repository.listTargets(), watchingForUpdates, proxy?.port ?? null,
+            proxy?.overHttps ?? false));
 
     // Off unless asked for. A tool that promises no telemetry cannot quietly phone
     // home, however good the reason, so the ask is a button rather than a habit.
