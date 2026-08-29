@@ -26,6 +26,10 @@ function sheet(over: Partial<Sheet> = {}): Sheet
         verdict: { level: 'ok', cause: 'none', reachable: 1, total: 1, blame: [] },
         targets: [target('Cloudflare DNS', { host: '1.1.1.1' })],
         history: [],
+        oldestMs: null,
+        neighbours: null,
+        sixth: null,
+        paths: [],
         rings: null,
         dns: null,
         tls: [],
@@ -46,7 +50,8 @@ describe('report', () =>
     // The person reading it at the provider did not run the tool and will not.
     it('says the verdict in words rather than a code', () =>
     {
-        const verdict = { level: 'down', cause: 'provider', reachable: 0, total: 4, blame: ['GitHub'] };
+        const verdict =
+            { level: 'down', cause: 'provider', reachable: 0, total: 4, blame: ['GitHub'] };
         const text = report(sheet({ verdict: verdict as Sheet['verdict'] }), AT);
 
         expect(text).toContain('The gateway answers, nothing past it does');
@@ -80,7 +85,8 @@ describe('report', () =>
     it('counts the checks that lost packets', () =>
     {
         const history = [{ targetId: 14, name: 'Cloudflare DNS', lossyRuns: 3, runs:
-            Array.from({ length: 12 }, () => ({ checkedAt: 'x', lossPercent: 0, averageMs: 10 })) }];
+            Array.from({ length: 12 },
+                () => ({ checkedAt: 'x', lossPercent: 0, averageMs: 10 })) }];
 
         expect(report(sheet({ history }), AT)).toContain('3 of the last 12 checks lost packets');
     });
@@ -158,6 +164,74 @@ describe('report', () =>
             certificate: null, error: 'ECONNRESET' }];
 
         expect(report(sheet({ tls }), AT)).toContain('ya.ru: reset, ECONNRESET');
+    });
+
+    // The two findings a provider argues with most.
+    it('names a sixth version that leads nowhere', () =>
+    {
+        const sixth = { state: 'broken' as const, addresses: ['2a02::1'],
+            answer: 'silent' as const, ms: null };
+
+        expect(report(sheet({ sixth }), AT)).toContain('leads nowhere');
+    });
+
+    it('leaves the sixth version out when there is none to speak of', () =>
+    {
+        const sixth = { state: 'absent' as const, addresses: [], answer: null, ms: null };
+
+        expect(report(sheet({ sixth }), AT)).not.toContain('IPv6');
+    });
+
+    it('writes the packet size only where it falls short', () =>
+    {
+        const paths =
+        [
+            { host: 'short.example', mtu: 1392, ordinary: 1500, error: null },
+            { host: 'fine.example', mtu: 1500, ordinary: 1500, error: null },
+        ];
+
+        const text = report(sheet({ paths }), AT);
+
+        expect(text).toContain('short.example: 1392 bytes cross whole');
+        expect(text).not.toContain('fine.example');
+    });
+
+    it('leaves the packet size out when nothing was measured', () =>
+    {
+        expect(report(sheet(), AT)).not.toContain('Packet size');
+    });
+
+    // A report can describe more than one minute, and saying so is the difference
+    // between a measurement and an impression.
+    it('owns up when some of it is old', () =>
+    {
+        expect(report(sheet({ oldestMs: 300_000 }), AT)).toContain('5 minutes old');
+    });
+
+    it('says nothing about age when everything is fresh', () =>
+    {
+        expect(report(sheet({ oldestMs: 20_000 }), AT)).not.toContain('minutes old');
+    });
+
+    it('says nothing about age when nothing was measured', () =>
+    {
+        expect(report(sheet(), AT)).not.toContain('minutes old');
+    });
+
+    it('counts the devices without naming them', () =>
+    {
+        expect(report(sheet({ neighbours: 7 }), AT)).toContain('Devices seen on this network: 7');
+    });
+
+    // Hardware addresses name particular devices, and this text goes to a stranger.
+    it('never writes a hardware address', () =>
+    {
+        expect(report(sheet({ neighbours: 7 }), AT)).not.toMatch(/([0-9a-f]{2}:){5}/i);
+    });
+
+    it('leaves the count out when nobody looked', () =>
+    {
+        expect(report(sheet(), AT)).not.toContain('Devices seen');
     });
 
     // Somebody pasting this into a ticket deserves to know what they are handing over.

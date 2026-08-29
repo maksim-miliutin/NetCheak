@@ -3,9 +3,16 @@ import type { Verdict } from '../verdict/verdict.ts';
 import type { DnsCheck } from '../dns/resolve.ts';
 import type { TlsCheck } from '../tls/handshake.ts';
 import type { Rings } from '../route/rings.ts';
+import type { SixthCheck } from '../route/sixth.ts';
+import type { Path } from '../mtu/mtu.ts';
 
 export interface Sheet
 {
+    /** How long ago the oldest measurement here was taken. */
+    oldestMs: number | null;
+    neighbours: number | null;
+    sixth: SixthCheck | null;
+    paths: Path[];
     verdict: Verdict;
     targets: StatusRow[];
     history: History[];
@@ -13,6 +20,18 @@ export interface Sheet
     dns: DnsCheck | null;
     tls: TlsCheck[];
 }
+
+/** Past this, a reader deserves to be told the numbers are from different minutes. */
+const STALE_MS = 120_000;
+
+const SIXTH: Record<string, string> =
+{
+    'working': 'carries traffic',
+    'broken': 'an address is held but leads nowhere, so every connection waits for it '
+        + 'to fail first',
+    'link-local-only': 'an address was found but nothing was tried against it',
+    'absent': 'not configured',
+};
 
 const SAID: Record<Verdict['cause'], string> =
 {
@@ -43,6 +62,15 @@ export function report(sheet: Sheet, at = new Date()): string
     lines.push('');
     lines.push(`Verdict: ${SAID[sheet.verdict.cause]}`);
 
+    // Six separate variables held these findings before, none remembering when. A
+    // report can describe more than one minute, and saying so is the difference
+    // between a measurement and an impression.
+    if (sheet.oldestMs !== null && sheet.oldestMs > STALE_MS)
+    {
+        lines.push(`Some of this is up to ${Math.round(sheet.oldestMs / 60_000)}`
+            + ' minutes old. Run the checks again for a report of one moment.');
+    }
+
     if (sheet.verdict.blame.length > 0)
     {
         lines.push(`Concerning: ${sheet.verdict.blame.join(', ')}`);
@@ -64,6 +92,35 @@ export function report(sheet: Sheet, at = new Date()): string
         {
             lines.push(`    ${past.lossyRuns} of the last ${past.runs.length}`
                 + ' checks lost packets');
+        }
+    }
+
+    // A count and nothing more. Hardware addresses name particular devices, and this
+    // text is written to be handed to somebody the reader has never met.
+    if (sheet.neighbours !== null)
+    {
+        lines.push('');
+        lines.push(`Devices seen on this network: ${sheet.neighbours}`);
+    }
+
+    // The two findings a provider argues with most, so they go in plainly.
+    if (sheet.sixth !== null && sheet.sixth.state !== 'absent')
+    {
+        lines.push('');
+        lines.push(`IPv6: ${SIXTH[sheet.sixth.state]}`);
+    }
+
+    const short = sheet.paths.filter((path) => path.mtu !== null && path.mtu < path.ordinary);
+
+    if (short.length > 0)
+    {
+        lines.push('');
+        lines.push('Packet size');
+
+        for (const path of short)
+        {
+            lines.push(`  ${path.host}: ${path.mtu} bytes cross whole,`
+                + ` where ${path.ordinary} is usual`);
         }
     }
 
@@ -101,7 +158,7 @@ export function report(sheet: Sheet, at = new Date()): string
 
     // Anybody pasting this into a ticket deserves to know what they are handing over.
     lines.push('This report holds host names, timings and verdicts. It carries nothing');
-    lines.push('about pages visited or traffic contents.');
+    lines.push('about pages visited, traffic contents, or which devices are in the house.');
 
     return lines.join('\n');
 }
