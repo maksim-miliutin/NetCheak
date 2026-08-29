@@ -6,15 +6,30 @@ import type { ChecksRepository } from '../db/checks.repository.ts';
 import { measureTarget } from '../probe/probe.ts';
 import { judge } from '../verdict/verdict.ts';
 import { CLOUDFLARE, measureSpeed } from '../speed/transfer.ts';
-import { probeRings, type Rings } from '../route/rings.ts';
+import { probeRings } from '../route/rings.ts';
+import { LastSeen } from './lastseen.ts';
+import { findTunnels } from '../route/tunnels.ts';
+import { checkSixth } from '../route/sixth.ts';
+import { findNeighbours } from '../route/neighbours.ts';
 import { traceTo } from '../route/traceroute.ts';
 import { report } from '../report/report.ts';
-import { checkDns, type DnsCheck } from '../dns/resolve.ts';
-import { inspectTls, type TlsCheck } from '../tls/handshake.ts';
+import { findMtu } from '../mtu/mtu.ts';
+import { findCut } from '../tls/cut.ts';
+import { tryEvasion } from '../tls/evasion.ts';
+import { startProxy } from '../proxy/proxy.ts';
+import { WAYS, type Way } from '../proxy/ways.ts';
+import { buildPac } from '../proxy/pac.ts';
+import { choosePort } from './port.ts';
+import { outbound } from '../report/outbound.ts';
+import { checkUpdate } from '../update/version.ts';
+import { checkDns } from '../dns/resolve.ts';
+import { inspectTls } from '../tls/handshake.ts';
 import { isAddress, parseTarget } from '../targets/address.ts';
 
 export interface ServerOptions
 {
+    /** The running version, so the update check has something to compare against. */
+    version?: string;
     db: Database;
     repository: ChecksRepository;
     logLevel?: string;
@@ -63,14 +78,23 @@ function failure(message: string, statusCode: number): FastifyError
 export async function buildServer(options: ServerOptions): Promise<FastifyInstance>
 {
     // Probing the gateway takes about a second and a half, and reading the page must
-    // not wait for it. The nearest hop is looked at while the checks run, and what it
-    // said is kept until the next run replaces it.
-    let rings: Rings | null = null;
+    // not wait for it: what the checks found is kept, with the moment each was found,
+    // so a report can say when it is describing more than one minute.
+    const seen = new LastSeen();
 
-    // The report is asked for after the checks, and repeating them to write it would
-    // measure a different minute than the one it claims to describe.
-    let lastDns: DnsCheck | null = null;
-    let lastTls: TlsCheck[] = [];
+    // Turned on by the first ask, so the list of what leaves this machine can tell
+    // the truth about whether it happens.
+    let watchingForUpdates = false;
+
+    // Off until asked for. It relays bytes without looking at them, but it is still a
+    // thing standing between the browser and the network, and that is not something
+    // to switch on behind somebody's back.
+    let proxy: { server: ReturnType<typeof startProxy>; port: number; way: Way } | null = null;
+
+    // Hosts where a different way of writing was needed. Only these go through the
+    // proxy: routing everything through it would put traffic there that has no
+    // reason to be.
+    const needing = new Set<string>();
 
     const { db, repository } = options;
 
@@ -158,6 +182,30 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // last one, which left the hardest case — a line that drops now and then — invisible.
     app.get('/api/history', async () => ({ targets: repository.history() }));
 
+    // A tunnel changes which route the traffic takes, and a check that looks strange
+    // often looks that way because it left through one.
+    app.get('/api/tunnels', async () => findTunnels());
+
+    // A machine with an address of the sixth version it cannot use is worse off than
+    // one without: the browser tries that family first and waits for it to fail.
+    app.post('/api/sixth', async () =>
+    {
+        seen.put('sixth', await checkSixth());
+
+        return seen.get('sixth');
+    });
+
+    // Who else is on this network. A house with a dozen devices and an evening of
+    // stuttering usually has its answer here, and nothing else in the tool looks.
+    app.get('/api/neighbours', async () =>
+    {
+        const found = await findNeighbours(seen.get('rings')?.gateway?.host ?? null);
+
+        seen.put('neighbours', found.error === null ? found.neighbours.length : null);
+
+        return found;
+    });
+
     // A person telling their provider the line is bad is rarely believed. The same
     // measurements as plain text can be pasted into a ticket by somebody who will
     // never open this tool.
@@ -166,12 +214,12 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         const targets = repository.latestStatus();
 
         const text = report({
-            verdict: judge(targets, rings ?? undefined, lastDns ?? undefined, lastTls),
+            verdict: judge(targets, seen.get('rings') ?? undefined, seen.get('dns') ?? undefined,
+                seen.get('tls')),
             targets,
             history: repository.history(),
-            rings,
-            dns: lastDns,
-            tls: lastTls,
+            oldestMs: seen.oldestMs(),
+            ...seen.all(),
         });
 
         return reply.type('text/plain; charset=utf-8').send(text);
@@ -208,10 +256,10 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
         const targets = repository.latestStatus();
 
         return {
-            verdict: judge(targets, rings ?? undefined),
+            verdict: judge(targets, seen.get('rings') ?? undefined),
             targets,
             speed: repository.latestSpeed(),
-            rings,
+            rings: seen.get('rings'),
         };
     });
 
@@ -219,9 +267,122 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // one that answers with somebody else's address.
     app.post('/api/dns', async () =>
     {
-        lastDns = await checkDns();
+        seen.put('dns', await checkDns());
 
-        return lastDns;
+        return seen.get('dns');
+    });
+
+    // Pages open and large files stall: the usual cause is a packet size the path will
+    // not carry whole. No ordinary speed test shows it.
+    app.post<{ Body: { target?: string } }>('/api/mtu', async (request) =>
+    {
+        const parsed = parseTarget(request.body?.target ?? '');
+
+        if (!parsed.ok)
+        {
+            throw badRequest(REFUSALS[parsed.refusal] ?? 'That is not a host to measure');
+        }
+
+        const path = await findMtu(parsed.address.host);
+
+        seen.put('paths', [...seen.get('paths').filter((p) => p.host !== path.host), path]);
+
+        return path;
+    });
+
+    // Whether something along the way objects to the name rather than to the address.
+    app.post<{ Body: { target?: string } }>('/api/cut', async (request) =>
+    {
+        const parsed = parseTarget(request.body?.target ?? '');
+
+        if (!parsed.ok)
+        {
+            throw badRequest(REFUSALS[parsed.refusal] ?? 'That is not a host to check');
+        }
+
+        return await findCut(parsed.address.host, parsed.address.port);
+    });
+
+    // Whether the block in the way is one that splitting the write gets past. This
+    // measures that it would work; it does not do it, which would mean a driver in
+    // the kernel and the rights that come with one.
+    app.post<{ Body: { target?: string } }>('/api/evasion', async (request) =>
+    {
+        const parsed = parseTarget(request.body?.target ?? '');
+
+        if (!parsed.ok)
+        {
+            throw badRequest(REFUSALS[parsed.refusal] ?? 'That is not a host to try');
+        }
+
+        const found = await tryEvasion(parsed.address.host, parsed.address.port);
+
+        if (found.splittingHelps)
+        {
+            needing.add(parsed.address.host);
+        }
+
+        return found;
+    });
+
+    /**
+     * A proxy the browser can be pointed at, which cuts the first write so no single
+     * packet carries the wanted name. On CONNECT it relays bytes blind: the traffic
+     * stays encrypted end to end and this holds no key to any of it.
+     */
+    app.post<{ Body: { way?: string } }>('/api/proxy', async (request) =>
+    {
+        if (proxy !== null)
+        {
+            proxy.server.close();
+            proxy = null;
+
+            return { running: false, port: null, way: null, ways: WAYS };
+        }
+
+        const asked = request.body?.way;
+        const way: Way = WAYS.includes(asked as Way) ? asked as Way : 'name';
+
+        const { port } = await choosePort(3128);
+
+        proxy = { server: startProxy({ port, way }), port, way };
+
+        return { running: true, port, way, ways: WAYS };
+    });
+
+    app.get('/api/proxy', async () => ({
+        running: proxy !== null,
+        port: proxy?.port ?? null,
+        way: proxy?.way ?? null,
+        ways: WAYS,
+    }));
+
+    /**
+     * The file a browser reads instead of being pointed at the proxy outright. Less
+     * of a person's traffic passing through this tool is the point.
+     */
+    app.get('/api/proxy.pac', async (request, reply) =>
+    {
+        const pac = buildPac([...needing], proxy?.port ?? 3128);
+
+        return reply.type('application/x-ns-proxy-autoconfig').send(pac);
+    });
+
+    app.addHook('onClose', async () => proxy?.server.close());
+
+    // Everywhere this tool sends a packet, built from the values the code uses. A
+    // promise about privacy written in prose goes stale the first time somebody adds
+    // a call; this list cannot.
+    app.get('/api/outbound', async () =>
+        outbound(repository.listTargets(), watchingForUpdates, proxy?.port ?? null));
+
+    // Off unless asked for. A tool that promises no telemetry cannot quietly phone
+    // home, however good the reason, so the ask is a button rather than a habit.
+    app.post('/api/update', async () =>
+    {
+        watchingForUpdates = true;
+
+        return await checkUpdate(options.version ?? '0.0.0');
     });
 
     // Which hop the packets stop at is the one question the layered checks cannot
@@ -247,7 +408,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
         const checks = await Promise.all(named.map((t) => inspectTls(t.host, t.port)));
 
-        lastTls = checks;
+        seen.put('tls', checks);
 
         // The verdict is recomputed here so a cut handshake reaches the headline: the
         // probe sees no loss when the connection opens and is severed afterwards.
@@ -298,7 +459,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
             probeRings(),
         ]);
 
-        rings = hop;
+        seen.put('rings', hop);
 
         for (const { id, result } of measured)
         {

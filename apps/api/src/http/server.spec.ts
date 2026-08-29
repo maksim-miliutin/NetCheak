@@ -291,6 +291,100 @@ describe('HTTP API', () =>
         expect(response.body).toContain('Name lookup');
     });
 
+    it('refuses to measure something that is not a host', async () =>
+    {
+        const response = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/mtu',
+            payload: { target: 'not a host' },
+        });
+
+        expect(response.statusCode).toBe(400);
+    });
+
+    // The list of what leaves this machine must not claim an errand the tool has not
+    // been asked to run.
+    it('keeps the version check out of the outbound list until it is asked for', async () =>
+    {
+        // github.com is a watched target from the start, so the ask is about the
+        // address the version question goes to, not about the word.
+        const asked = (body: { errands: { where: string }[] }): boolean =>
+            body.errands.some((errand) => errand.where === 'api.github.com');
+
+        const before = await app.inject({ method: 'GET', url: '/api/outbound' });
+
+        expect(asked(before.json())).toBe(false);
+
+        await app.inject({ method: 'POST', url: '/api/update' });
+
+        const after = await app.inject({ method: 'GET', url: '/api/outbound' });
+
+        expect(asked(after.json())).toBe(true);
+    });
+
+    // A thing standing between the browser and the network is not switched on behind
+    // somebody's back, so it starts off and the same button stops it.
+    it('starts with no proxy running', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/proxy' });
+
+        expect(response.json()).toMatchObject({ running: false, port: null });
+        expect(response.json().ways.length).toBeGreaterThan(1);
+    });
+
+    it('starts and stops the proxy on the same ask', async () =>
+    {
+        const started = await app.inject({ method: 'POST', url: '/api/proxy' });
+
+        expect(started.json().running).toBe(true);
+        expect(started.json().port).toBeGreaterThan(0);
+
+        const stopped = await app.inject({ method: 'POST', url: '/api/proxy' });
+
+        expect(stopped.json().running).toBe(false);
+    });
+
+    // A way nobody offered is not a way to write, and falling back beats failing.
+    it('falls back to cutting through the name when asked for something unknown', async () =>
+    {
+        const started = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/proxy',
+            payload: { way: 'nonsense' },
+        });
+
+        expect(started.json().way).toBe('name');
+
+        await app.inject({ method: 'POST', url: '/api/proxy' });
+    });
+
+    it('starts with the way it was asked for', async () =>
+    {
+        const started = await app.inject(
+        {
+            method: 'POST',
+            url: '/api/proxy',
+            payload: { way: 'records' },
+        });
+
+        expect(started.json().way).toBe('records');
+
+        await app.inject({ method: 'POST', url: '/api/proxy' });
+    });
+
+    // Nothing needed the proxy yet, so the browser must be told to go straight out.
+    it('hands back a file that proxies nothing until something needs it', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/proxy.pac' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['content-type']).toContain('proxy-autoconfig');
+        expect(response.body).toContain('DIRECT');
+        expect(response.body).not.toContain('PROXY');
+    });
+
     it('answers 404 in the same shape as other errors', async () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/nope' });
