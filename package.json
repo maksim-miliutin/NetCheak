@@ -10,7 +10,9 @@
         "dev:web": "npm run dev --workspace @netcheck/web",
         "test": "vitest run",
         "typecheck": "tsc --noEmit -p apps/api",
-        "build:binary": "node tools/build-binary.mjs"
+        "build:binary": "node tools/build-binary.mjs",
+        "check:divert": "node tools/check-divert.mjs",
+        "divert": "node tools/divert-run.mjs"
     },
     "devDependencies": {
         "vitest": "^4.1.11"
