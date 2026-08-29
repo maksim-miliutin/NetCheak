@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { reasonFor } from './missing.ts';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -52,7 +53,7 @@ export async function traceTo(host: string): Promise<Trace>
         const output = (err as { stdout?: string }).stdout ?? '';
         const hops = parseHops(output);
 
-        return hops.length > 0 ? read(host, hops) : read(host, [], reasonFor(err));
+        return hops.length > 0 ? read(host, hops) : read(host, [], reasonFor(err, 'traceroute'));
     }
 }
 
@@ -153,20 +154,3 @@ function read(target: string, hops: Hop[], error: string | null = null): Trace
     return { target, hops, silentFrom: silenceFrom(hops), error };
 }
 
-/** The utility is not part of every install, and saying so beats showing nothing. */
-export function reasonFor(err: unknown): string
-{
-    const code = (err as NodeJS.ErrnoException).code;
-
-    if (code === 'ENOENT')
-    {
-        return 'The system traceroute is not installed';
-    }
-
-    if (code === 'ETIMEDOUT')
-    {
-        return 'The trace took too long and was stopped';
-    }
-
-    return (err as Error).message;
-}
