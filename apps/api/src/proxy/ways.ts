@@ -1,6 +1,14 @@
 import { findName } from './split.ts';
 
-export type Way = 'whole' | 'name' | 'first-byte' | 'many' | 'records';
+export type Way =
+    | 'whole'
+    | 'name'
+    | 'first-byte'
+    | 'many'
+    | 'tiny'
+    | 'records'
+    | 'records-three'
+    | 'both';
 
 export interface Attempt
 {
@@ -9,11 +17,23 @@ export interface Attempt
     pieces: Buffer[];
 }
 
-export const WAYS: Way[] = ['whole', 'name', 'first-byte', 'many', 'records'];
+export const WAYS: Way[] =
+[
+    'whole',
+    'name',
+    'first-byte',
+    'many',
+    'tiny',
+    'records',
+    'records-three',
+    'both',
+];
 
 const RECORD_HEADER = 5;
 
 const PIECES = 4;
+
+const TINY_PIECES = 10;
 
 /**
  * The same hello written five ways. A filter reads the wanted name out of what
@@ -46,6 +66,27 @@ export function writeAs(way: Way, hello: Buffer): Attempt
         return { way, pieces: intoPieces(hello, PIECES) };
     }
 
+    // Small enough that no piece holds anything a filter can act on, at the cost of
+    // a write and a wait for each.
+    if (way === 'tiny')
+    {
+        return { way, pieces: intoPieces(hello, TINY_PIECES) };
+    }
+
+    if (way === 'records-three')
+    {
+        return { way, pieces: intoRecords(hello, findName(hello), 3) };
+    }
+
+    // Both at once: the handshake in records of its own, and each record written in
+    // pieces. For a filter that reassembles one of those and not the other.
+    if (way === 'both')
+    {
+        const records = intoRecords(hello, findName(hello));
+
+        return { way, pieces: records.flatMap((record) => intoPieces(record, 2)) };
+    }
+
     return { way, pieces: intoRecords(hello, findName(hello)) };
 }
 
@@ -70,11 +111,11 @@ export function intoPieces(hello: Buffer, count: number): Buffer[]
  * name for the same reason it does everywhere else: cutting elsewhere leaves the name
  * whole inside one of the records, which is the thing being hidden.
  */
-export function intoRecords(hello: Buffer, nameAt: number): Buffer[]
+export function intoRecords(hello: Buffer, nameAt: number, count = 2): Buffer[]
 {
     const body = hello.subarray(RECORD_HEADER);
 
-    if (body.length < 2)
+    if (body.length < count)
     {
         return [hello];
     }
@@ -83,7 +124,18 @@ export function intoRecords(hello: Buffer, nameAt: number): Buffer[]
         ? Math.floor(body.length / 2)
         : Math.min(body.length - 1, Math.max(1, nameAt - RECORD_HEADER + 2));
 
-    return [record(hello, body.subarray(0, through)), record(hello, body.subarray(through))];
+    if (count <= 2)
+    {
+        return [record(hello, body.subarray(0, through)),
+            record(hello, body.subarray(through))];
+    }
+
+    // The cut through the name stays where it is; the rest is divided after it, so
+    // the name is still split whatever else changes.
+    const rest = intoPieces(body.subarray(through), count - 1);
+
+    return [record(hello, body.subarray(0, through)),
+        ...rest.map((piece) => record(hello, piece))];
 }
 
 function record(hello: Buffer, piece: Buffer): Buffer

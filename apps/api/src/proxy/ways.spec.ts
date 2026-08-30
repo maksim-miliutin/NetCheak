@@ -13,9 +13,10 @@ describe('writeAs', () =>
     {
         const { pieces } = writeAs(way, hello);
 
-        if (way === 'records')
+        // Anything reframed into records of its own carries their headers too, so
+        // the bytes differ by design rather than by mistake.
+        if (way === 'records' || way === 'records-three' || way === 'both')
         {
-            // Records carry their own headers, so the bytes differ by design.
             expect(joined(pieces).length).toBeGreaterThan(hello.length);
 
             return;
@@ -39,7 +40,7 @@ describe('writeAs', () =>
     });
 
     // Cutting through the name is what hides it. These three do that.
-    it.each(['name', 'many', 'records'] as const)(
+    it.each(['name', 'many', 'tiny', 'records', 'records-three', 'both'] as const)(
         'leaves the name in no single piece: %s', (way) =>
         {
             const wanted = Buffer.from('example.com');
@@ -59,6 +60,25 @@ describe('writeAs', () =>
     it('cuts into several pieces when asked for many', () =>
     {
         expect(writeAs('many', hello).pieces.length).toBeGreaterThan(2);
+    });
+
+    // Each step down costs a write and a wait, so they had better differ.
+    it('cuts finer for tiny than for many', () =>
+    {
+        expect(writeAs('tiny', hello).pieces.length)
+            .toBeGreaterThan(writeAs('many', hello).pieces.length);
+    });
+
+    it('makes three records when asked for three', () =>
+    {
+        expect(writeAs('records-three', hello).pieces).toHaveLength(3);
+    });
+
+    // Both at once: records of their own, each written in pieces.
+    it('cuts the records up as well when asked for both', () =>
+    {
+        expect(writeAs('both', hello).pieces.length)
+            .toBeGreaterThan(writeAs('records', hello).pieces.length);
     });
 });
 

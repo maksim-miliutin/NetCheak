@@ -12,6 +12,12 @@ export interface ProxyOptions
     way?: Way;
     /** Resolve names over HTTPS, so a hijacked plain answer cannot reach them. */
     overHttps?: boolean;
+    /**
+     * Listen where the rest of the network can reach it, for a phone. Everybody on
+     * that network can then route through it, which is why it is off by default and
+     * asked for by name.
+     */
+    onNetwork?: boolean;
 }
 
 const DEFAULT_PORT = 3128;
@@ -49,7 +55,8 @@ export function startProxy(options: ProxyOptions = {}): Server
         client.on('error', () => client.destroy());
     });
 
-    server.listen(options.port ?? DEFAULT_PORT, '127.0.0.1');
+    server.listen(options.port ?? DEFAULT_PORT,
+        options.onNetwork === true ? '0.0.0.0' : '127.0.0.1');
 
     return server;
 }

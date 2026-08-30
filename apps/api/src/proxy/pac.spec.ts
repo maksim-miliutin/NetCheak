@@ -34,19 +34,19 @@ describe('buildPac', () =>
     // proxied everything would be worse than no file at all.
     it('sends everything direct when no host needs the proxy', () =>
     {
-        expect(ask(buildPac([], 3128), 'example.com')).toBe('DIRECT');
+        expect(ask(buildPac([], [{ way: 'name', port: 3128 }]), 'example.com')).toBe('DIRECT');
     });
 
     it('sends a listed host through the proxy', () =>
     {
-        expect(ask(buildPac(['blocked.example'], 3128), 'blocked.example'))
+        expect(ask(buildPac(['blocked.example'], [{ way: 'name', port: 3128 }]), 'blocked.example'))
             .toBe('PROXY 127.0.0.1:3128');
     });
 
     // Everything the person does that is not blocked must not pass through here.
     it('sends everything else straight out', () =>
     {
-        const pac = buildPac(['blocked.example'], 3128);
+        const pac = buildPac(['blocked.example'], [{ way: 'name', port: 3128 }]);
 
         expect(ask(pac, 'example.com')).toBe('DIRECT');
         expect(ask(pac, 'bank.example')).toBe('DIRECT');
@@ -54,7 +54,7 @@ describe('buildPac', () =>
 
     it('covers anything under a listed host', () =>
     {
-        const pac = buildPac(['blocked.example'], 3128);
+        const pac = buildPac(['blocked.example'], [{ way: 'name', port: 3128 }]);
 
         expect(ask(pac, 'www.blocked.example')).toBe('PROXY 127.0.0.1:3128');
         expect(ask(pac, 'a.b.blocked.example')).toBe('PROXY 127.0.0.1:3128');
@@ -63,24 +63,30 @@ describe('buildPac', () =>
     // A name that merely ends the same way belongs to somebody else.
     it('does not catch a host that only ends the same way', () =>
     {
-        expect(ask(buildPac(['blocked.example'], 3128), 'notblocked.example')).toBe('DIRECT');
+        const pac = buildPac(['blocked.example'], [{ way: 'name', port: 3128 }]);
+
+        expect(ask(pac, 'notblocked.example')).toBe('DIRECT');
     });
 
     it('carries the port it was given', () =>
     {
-        expect(ask(buildPac(['blocked.example'], 9999), 'blocked.example'))
-            .toBe('PROXY 127.0.0.1:9999');
+        const pac = buildPac(['blocked.example'], [{ way: 'name', port: 9999 }]);
+
+        expect(ask(pac, 'blocked.example')).toBe('PROXY 127.0.0.1:9999');
     });
 
     it('lists a host once however often it was given', () =>
     {
-        const pac = buildPac(['a.example', 'A.example', 'https://a.example/x'], 3128);
+        const same = ['a.example', 'A.example', 'https://a.example/x'];
+        const pac = buildPac(same, [{ way: 'name', port: 3128 }]);
 
         expect(pac.match(/"a\.example"/g)).toHaveLength(1);
     });
 
     it('leaves out anything that is not a host', () =>
     {
-        expect(ask(buildPac(['', '   '], 3128), 'example.com')).toBe('DIRECT');
+        const pac = buildPac(['', '   '], [{ way: 'name', port: 3128 }]);
+
+        expect(ask(pac, 'example.com')).toBe('DIRECT');
     });
 });
