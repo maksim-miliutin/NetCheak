@@ -237,6 +237,25 @@ describe('ChecksRepository', () =>
         expect(count(db, 'target_runs')).toBe(0);
     });
 
+    // The sweep works by a boundary rather than a list of ids, which is only correct
+    // while ids rise with the clock. A run newer than the boundary must survive even
+    // though an older one beside it goes.
+    it('sweeps up to the boundary and no further', () =>
+    {
+        const target = only(repository.listTargets(), 'target');
+
+        const old = repository.createCheck(1, 2000);
+        age(db, old, 30);
+        repository.saveResult(old, target.id, resultFor([ok(10), ok(11)]));
+
+        const fresh = repository.createCheck(1, 2000);
+        repository.saveResult(fresh, target.id, resultFor([ok(12), ok(13), ok(14)]));
+
+        repository.prune();
+
+        expect(count(db, 'samples')).toBe(3);
+    });
+
     it('leaves everything alone when nothing is old enough', () =>
     {
         const target = only(repository.listTargets(), 'target');

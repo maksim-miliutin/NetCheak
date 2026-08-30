@@ -260,13 +260,15 @@ export class ChecksRepository
      */
     prune(sampleDays = 7, runDays = 365): Swept
     {
-        const samples = this.db.prepare(`
-            DELETE FROM samples WHERE target_run_id IN (
-                SELECT r.id FROM target_runs r
-                JOIN checks c ON c.id = r.check_id
-                WHERE c.started_at < datetime('now', ?)
-            )
-        `).run(`-${sampleDays} days`);
+        // Asking which samples belong to an old check built a list of every run id
+        // in the window — tens of thousands of them, to find twenty rows. Ids rise
+        // with the clock, so the same question has an answer that is a boundary
+        // rather than a list, and a delete below a boundary is a range.
+        const edge = this.runsBefore(sampleDays);
+
+        const samples = edge === null
+            ? { changes: 0 }
+            : this.db.prepare('DELETE FROM samples WHERE target_run_id <= ?').run(edge);
 
         // Runs go with their check, and their samples go with them: the cascade does it.
         const checks = this.db
@@ -274,6 +276,25 @@ export class ChecksRepository
             .run(`-${runDays} days`);
 
         return { samples: Number(samples.changes), checks: Number(checks.changes) };
+    }
+
+    /** The last run belonging to a check older than the window, or none. */
+    private runsBefore(days: number): number | null
+    {
+        const check = this.db
+            .prepare("SELECT max(id) AS id FROM checks WHERE started_at < datetime('now', ?)")
+            .get(`-${days} days`) as { id: number | null } | undefined;
+
+        if (check?.id == null)
+        {
+            return null;
+        }
+
+        const run = this.db
+            .prepare('SELECT max(id) AS id FROM target_runs WHERE check_id <= ?')
+            .get(check.id) as { id: number | null } | undefined;
+
+        return run?.id ?? null;
     }
 
     /**
