@@ -105,6 +105,15 @@ describe('measureSpeed', () =>
     it('reports a rate and what it measured against', async () =>
     {
         const { source } = await serving();
+
+        // The first request of a run pays for the client waking up, and on a busy
+        // machine that alone outlasts a window this short: every stream is aborted
+        // before a byte lands and the reading comes back empty for a reason that has
+        // nothing to do with the transfer.
+        const woken = await fetch(source.download(1));
+
+        await woken.text();
+
         const measured = await measureSpeed(source,
             { durationMs: 400, warmupMs: 50, streams: 2 });
 

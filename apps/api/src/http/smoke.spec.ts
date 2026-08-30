@@ -19,6 +19,7 @@ const FILE = join(tmpdir(), `netcheck-smoke-${process.pid}.db`);
 
 let base = '';
 let app: Awaited<ReturnType<typeof buildServer>>;
+let db: Database;
 
 async function ask(path: string, init?: RequestInit): Promise<Response>
 {
@@ -38,7 +39,7 @@ beforeAll(async () =>
         rmSync(`${FILE}${suffix}`, { force: true });
     }
 
-    const db = new Database(FILE);
+    db = new Database(FILE);
 
     await db.migrate(join(import.meta.dirname, '..', '..', 'migrations'));
 
@@ -55,6 +56,10 @@ beforeAll(async () =>
 afterAll(async () =>
 {
     await app.close();
+
+    // Windows refuses to delete a file anything still holds open, and the server
+    // does not close the database for us: it is handed one and does not own it.
+    db.close();
 
     for (const suffix of ['', '-wal', '-shm'])
     {
