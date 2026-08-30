@@ -4,6 +4,7 @@
 
 import { Database } from './db/database.ts';
 import { ChecksRepository } from './db/checks.repository.ts';
+import { placeDatabase } from './db/place.ts';
 import { buildServer } from './http/server.ts';
 import { choosePort } from './http/port.ts';
 
@@ -28,9 +29,22 @@ const TYPES: Record<string, string> =
     png: 'image/png',
 };
 
+// Kept beside the code rather than read from a manifest the binary does not carry.
+const VERSION = '1.0.0';
+
 async function main(): Promise<void>
 {
-    const db = new Database(databaseFile());
+    // Somewhere like a mounted image or Program Files cannot be written to, and a
+    // database error is not something to hand a person who wanted their internet
+    // checked.
+    const placed = placeDatabase(databaseFile());
+
+    if (placed.refused !== null)
+    {
+        console.log(`Cannot write beside the program, so the history is kept in ${placed.file}`);
+    }
+
+    const db = new Database(placed.file);
 
     for (const file of migrations as Asset[])
     {
@@ -45,6 +59,8 @@ async function main(): Promise<void>
     {
         db,
         repository: new ChecksRepository(db),
+        version: VERSION,
+        port,
         logLevel: 'warn',
         allowedOrigins: [`http://127.0.0.1:${port}`, `http://localhost:${port}`],
     });
