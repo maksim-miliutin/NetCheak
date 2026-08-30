@@ -228,13 +228,32 @@ export interface Evasion
     error: string | null;
 }
 
+export interface Relay
+{
+    way: string;
+    port: number;
+}
+
+export interface Preset
+{
+    id: string;
+    way: string;
+    overHttps: boolean;
+    gapMs: number;
+}
+
 export interface ProxyState
 {
     running: boolean;
-    port: number | null;
-    way: string | null;
+    relays: Relay[];
+    preset: string | null;
+    presets: Preset[];
     ways: string[];
     overHttps: boolean;
+    system: boolean;
+    systemError: string | null;
+    onNetwork: boolean;
+    lan: string | null;
 }
 
 export interface Tried

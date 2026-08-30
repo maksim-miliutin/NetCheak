@@ -122,12 +122,12 @@ export const tryEvasion = (target: string): Promise<Evasion> =>
 
 export const getProxy = (): Promise<ProxyState> => request<ProxyState>('/proxy');
 
-export const toggleProxy = (way?: string): Promise<ProxyState> =>
+export const toggleProxy = (preset?: string, onNetwork = false): Promise<ProxyState> =>
     request<ProxyState>('/proxy',
     {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(way === undefined ? {} : { way }),
+        body: JSON.stringify(preset === undefined ? { onNetwork } : { preset, onNetwork }),
     });
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });

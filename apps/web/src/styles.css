@@ -46,9 +46,33 @@ body
 
 .band
 {
-    padding: 44px 24px 36px;
+    position: relative;
+    padding: 44px 24px 40px;
+    overflow: hidden;
     background: var(--tint);
     transition: background 240ms ease;
+}
+
+/* A soft disc behind the face, in the verdict's own colour. The band was a flat wash
+   and the face sat on it like a sticker. */
+.band::before
+{
+    position: absolute;
+    top: -120px;
+    left: -80px;
+    width: 420px;
+    height: 420px;
+    background: radial-gradient(circle,
+        color-mix(in srgb, var(--accent) 12%, transparent) 0%,
+        transparent 68%);
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+}
+
+.inner
+{
+    position: relative;
 }
 
 /* A hairline where the tint stops, so the two halves of the page meet rather than
@@ -95,6 +119,28 @@ body
     width: 128px;
     height: 128px;
     margin-top: 26px;
+    filter: drop-shadow(0 6px 14px rgba(22, 33, 44, 0.16));
+    transition: transform 260ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* It leans in when the news is bad. Nothing else on the page moves, so one small
+   thing that does is a signal rather than decoration. */
+[data-state="warn"] .roflanich
+{
+    transform: rotate(-6deg);
+}
+
+[data-state="down"] .roflanich
+{
+    transform: rotate(-12deg) scale(0.94);
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .roflanich
+    {
+        transition: none;
+    }
 }
 
 .withface > .masthead
@@ -119,6 +165,17 @@ body
 
 
 
+
+/* Beside the name on a phone, where the big one would take the width the verdict
+   needs. Hidden on a wide screen, where the big one has room of its own. */
+.tiny
+{
+    display: none;
+    width: 26px;
+    height: 26px;
+    margin-right: 8px;
+    vertical-align: -7px;
+}
 
 .masthead b
 {
@@ -160,10 +217,10 @@ h1
     max-width: 20ch;
     margin: 0 0 14px;
     color: var(--accent);
-    font-size: 38px;
-    font-weight: 700;
-    line-height: 1.12;
-    letter-spacing: -0.03em;
+    font-size: 40px;
+    font-weight: 750;
+    line-height: 1.08;
+    letter-spacing: -0.035em;
 }
 
 .lead
@@ -361,6 +418,11 @@ button:hover:not(:disabled)
     border-color: #aeb8c1;
 }
 
+button:active:not(:disabled)
+{
+    transform: translateY(1px);
+}
+
 button:disabled
 {
     color: var(--ink-faint);
@@ -373,6 +435,7 @@ button:disabled
     font-weight: 600;
     background: var(--ink);
     border-color: var(--ink);
+    box-shadow: 0 2px 8px rgba(22, 33, 44, 0.18);
 }
 
 .primary:hover:not(:disabled)
@@ -547,7 +610,13 @@ input:focus-visible
 {
     .band
     {
-        padding: 22px 18px 24px;
+        padding: 20px 18px 26px;
+    }
+
+    .band::before
+    {
+        top: -160px;
+        left: -140px;
     }
 
 
@@ -559,7 +628,78 @@ input:focus-visible
 
     h1
     {
-        font-size: 26px;
+        max-width: none;
+        font-size: 29px;
+        letter-spacing: -0.03em;
+    }
+
+    .lead
+    {
+        max-width: none;
+    }
+
+    /* Thumb-sized and unmistakable: the one thing to press when a page will not open. */
+    .actions
+    {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 20px 0;
+    }
+
+    .actions button
+    {
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 15px;
+    }
+
+    .repeat
+    {
+        justify-content: flex-start;
+        padding: 6px 0 0;
+    }
+
+    /* At this width the two figures wrapped mid-sentence, which read as two readings
+       rather than one. */
+    .speed
+    {
+        font-size: 18px;
+        letter-spacing: -0.015em;
+    }
+
+    .reading
+    {
+        padding: 16px 0;
+    }
+
+    /* A finger is not a pointer: these were half the height a thumb wants. */
+    .deeper button
+    {
+        padding: 9px 14px;
+        font-size: 14px;
+    }
+
+    .deeper
+    {
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .forget
+    {
+        padding: 6px 0 6px 12px;
+    }
+
+    .lane
+    {
+        padding: 18px 0 16px;
+    }
+
+    /* The gap between the last reading and the first lane read as a missing block. */
+    .lanes
+    {
+        margin-top: 8px;
     }
 
     .link::after
@@ -623,20 +763,31 @@ input:focus-visible
     list-style: none;
 }
 
-/* At a narrow width the face takes room the headline needs, so it gives some back. */
+/**
+ * Below this the face stops sitting beside the verdict and moves up beside the name.
+ * Side by side it left the sentence a column four words wide, which is a worse way to
+ * read a verdict than having no face at all.
+ */
 @media (max-width: 720px)
 {
     .withface
     {
-        grid-template-columns: 76px 1fr;
-        gap: 0 16px;
+        display: block;
     }
 
     .roflanich
     {
-        width: 76px;
-        height: 76px;
-        margin-top: 14px;
+        display: none;
+    }
+
+    .tiny
+    {
+        display: inline-block;
+    }
+
+    .masthead
+    {
+        margin-bottom: 20px;
     }
 }
 
@@ -691,7 +842,7 @@ input:focus-visible
 {
     fill: none;
     stroke: var(--ink);
-    stroke-width: 1.6;
+    stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
@@ -848,27 +999,7 @@ input:focus-visible
     font-weight: 600;
 }
 
-/* The picker sits with the button it changes. */
-.picker
-{
-    display: inline-flex;
-    gap: 8px;
-    align-items: center;
-    margin-left: 18px;
-    color: var(--ink-faint);
-    font-size: 13px;
-}
 
-.picker select
-{
-    padding: 4px 8px;
-    color: var(--ink);
-    font: inherit;
-    font-size: 13px;
-    background: var(--paper);
-    border: 1px solid #cdd4da;
-    border-radius: 6px;
-}
 
 .tools
 {
@@ -886,6 +1017,89 @@ input:focus-visible
 .tools > p
 {
     margin-top: 14px;
+}
+
+/* One line per running proxy: where to reach it, then which way it writes. */
+.ports
+{
+    padding: 0;
+    margin: 10px 0 16px;
+    list-style: none;
+}
+
+.relays > p
+{
+    max-width: 64ch;
+}
+
+/* Each says what it does and what it costs, cheapest first, so the list reads as an
+   order to try rather than a menu to guess from. Name, sentence and action each get
+   their own place: run together they were a wall of grey with buttons in it. */
+.presets
+{
+    margin-top: 16px;
+}
+
+.presets > p
+{
+    margin: 0 0 10px;
+}
+
+.presets ul
+{
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.presets li
+{
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-top: 1px solid var(--rule);
+}
+
+.presets li > div
+{
+    max-width: 56ch;
+}
+
+.presets b
+{
+    display: block;
+    margin-bottom: 3px;
+    color: var(--ink);
+    font-size: 15px;
+}
+
+.presets li > div span
+{
+    color: var(--ink-soft);
+}
+
+.presets button
+{
+    flex-shrink: 0;
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+/* The port is what somebody came here for, so it is not a footnote. */
+.ports li
+{
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    padding: 5px 0;
+}
+
+.ports li span
+{
+    color: var(--ink-soft);
+    font-size: 13px;
 }
 
 .leaves

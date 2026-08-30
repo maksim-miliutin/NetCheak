@@ -18,17 +18,26 @@ export interface Words
     tryEvasion: string;
     tools: string;
     startProxy: string;
-    pickWay: string;
     wayNames: Record<string, string>;
     answerNames: Record<string, string>;
     useThisWay: (way: string) => string;
     triedAll: string;
     stopProxy: string;
-    proxyRunning: (port: number) => string;
+    proxyRunning: string;
+    proxyStep: (n: number) => string;
+    systemSet: string;
+    systemFailed: string;
+    systemLimit: string;
+    forPhone: string;
+    phoneHow: (address: string, port: number) => string;
+    phoneWarn: string;
+    presets: string;
+    presetNames: Record<string, string>;
+    presetSays: Record<string, string>;
+    usePreset: string;
+    presetRunning: (name: string) => string;
     proxyBlind: string;
-    proxyPac: string;
     proxyOverHttps: string;
-    proxyPacEmpty: string;
     trying: string;
     evasion: Record<string, string>;
     checkThisSite: string;
@@ -107,7 +116,6 @@ const EN: Words =
     tryEvasion: 'would splitting help',
     tools: 'Tools and disclosure',
     startProxy: 'Start the splitting proxy',
-    pickWay: 'writing the hello',
     answerNames:
     {
         'greeted': 'got through',
@@ -128,19 +136,70 @@ const EN: Words =
         'records': 'split across two records',
     },
     stopProxy: 'Stop the proxy',
-    proxyRunning: (port) => `Point the browser at 127.0.0.1:${port} as an HTTP proxy. `
-        + 'Every connection through it has its first write cut, so no single packet '
-        + 'carries the name of the site.',
+    proxyRunning: 'Running, one for each way of writing.',
+    proxyStep: (n) => `${n}.`,
+    systemSet: 'The system proxy setting is done, so this covers the browser and most '
+        + 'other programs on this machine without any of them being set up by hand. '
+        + 'Only the sites that needed help go through it; the rest of your traffic '
+        + 'goes straight out. Stopping puts the setting back as it was.',
+    systemFailed: 'The system setting could not be changed, so only programs told '
+        + 'about the proxy by hand will use it.',
+    presets: 'Ready-made settings',
+    usePreset: 'use this one',
+    presetRunning: (name) => `Running: ${name}.`,
+
+    presetNames:
+    {
+        'lite-1': 'Lite 1',
+        'lite-2': 'Lite 2',
+        'lite-3': 'Lite 3',
+        'shred-1': 'Shred 1',
+        'shred-2': 'Shred 2',
+        'records-1': 'Records 1',
+        'records-2': 'Records 2',
+        'records-3': 'Records 3',
+        'mix-1': 'Mix 1',
+        'mix-2': 'Mix 2',
+    },
+
+    presetSays:
+    {
+        'lite-1': 'The hello cut through the name. The lightest thing that gets past a '
+            + 'filter reading it, and where to start.',
+        'lite-2': 'The same, with names looked up over HTTPS — for a block that lives '
+            + 'in the answer rather than in the packet.',
+        'lite-3': 'One byte, then the rest, for a filter that reads only the packet a '
+            + 'connection opens with.',
+        'shred-1': 'The hello in four pieces, for a filter that reassembles two.',
+        'shred-2': 'In ten pieces, none holding anything to act on. A write and a wait '
+            + 'for each, which is what it costs.',
+        'records-1': 'The handshake in two TLS records rather than one. Not packet '
+            + 'splitting at all, and it gets past different filters.',
+        'records-2': 'Three records rather than two, for a filter that puts two back '
+            + 'together.',
+        'records-3': 'Two records held far apart. Slower on every connection, so worth '
+            + 'it once the quicker ones have failed.',
+        'mix-1': 'Records of their own, each written in pieces. For a filter that '
+            + 'reassembles one of those and not the other.',
+        'mix-2': 'The same, held as far apart as is worth waiting for. The one to '
+            + 'reach for when nothing else got through.',
+    },
+
+    forPhone: 'Reachable from a phone',
+    phoneHow: (address, port) => `On the phone, in the Wi-Fi settings for this network, `
+        + `set the HTTP proxy to ${address} port ${port}.`,
+    phoneWarn: 'While this is on, anybody else on this network can route their traffic '
+        + 'through here too. Turn it off when the phone no longer needs it.',
+
+    systemLimit: 'Programs that open their own connections without asking the system — '
+        + 'some games and clients among them — are not covered. Covering every packet '
+        + 'whatever the program means a driver inside the kernel, and this tool does '
+        + 'not ask for those rights.',
     proxyBlind: 'It relays bytes without reading them: the traffic stays encrypted end '
         + 'to end and this holds no key to any of it.',
     proxyOverHttps: 'Names going through it are looked up over HTTPS. Splitting the '
         + 'write answers a filter reading the name; this answers a resolver handing '
         + 'back somebody else\'s address, which is a different block entirely.',
-    proxyPac: 'Better still, give the browser this address as its automatic proxy '
-        + 'configuration. Only the sites that needed a different way of writing go '
-        + 'through the proxy; the rest of your traffic never touches it.',
-    proxyPacEmpty: 'Nothing has needed the proxy yet, so this file sends everything '
-        + 'straight out. Try a site that will not open, and it will be added.',
     trying: 'trying…',
     checkThisSite: 'Check this site',
     dragMe: 'Make a bookmark with this as its address. On a page that will not open, '
@@ -379,7 +438,6 @@ const RU: Words =
     tryEvasion: 'поможет ли дробление',
     tools: 'Средства и раскрытие',
     startProxy: 'Включить дробящий прокси',
-    pickWay: 'способ записи',
     answerNames:
     {
         'greeted': 'прошло',
@@ -400,19 +458,69 @@ const RU: Words =
         'records': 'двумя записями',
     },
     stopProxy: 'Выключить прокси',
-    proxyRunning: (port) => `Укажите в браузере HTTP-прокси 127.0.0.1:${port}. У каждого `
-        + 'соединения через него первая запись разрезается, поэтому имя сайта не '
-        + 'попадает целиком ни в один пакет.',
+    proxyRunning: 'Запущены, по одному на каждый способ записи.',
+    proxyStep: (n) => `${n}.`,
+    systemSet: 'Системная настройка прокси проставлена — покрыт браузер и большинство '
+        + 'других программ на этой машине, настраивать вручную ничего не нужно. Через '
+        + 'прокси идут только сайты, которым он понадобился, остальной трафик уходит '
+        + 'напрямую. При выключении настройка вернётся как была.',
+    systemFailed: 'Системную настройку изменить не удалось, поэтому прокси будут '
+        + 'пользоваться только программы, которым про него сказали вручную.',
+    presets: 'Готовые наборы',
+    usePreset: 'включить этот',
+    presetRunning: (name) => `Работает: ${name}.`,
+
+    presetNames:
+    {
+        'lite-1': 'Lite 1',
+        'lite-2': 'Lite 2',
+        'lite-3': 'Lite 3',
+        'shred-1': 'Shred 1',
+        'shred-2': 'Shred 2',
+        'records-1': 'Records 1',
+        'records-2': 'Records 2',
+        'records-3': 'Records 3',
+        'mix-1': 'Mix 1',
+        'mix-2': 'Mix 2',
+    },
+
+    presetSays:
+    {
+        'lite-1': 'Приветствие разрезано по имени. Самое лёгкое, что обходит фильтр, '
+            + 'который это имя читает, — с него и начинают.',
+        'lite-2': 'То же плюс разрешение имён по HTTPS — на случай, когда блокировка '
+            + 'живёт в ответе, а не в пакете.',
+        'lite-3': 'Один байт, потом остальное, — для фильтра, который читает только '
+            + 'тот пакет, которым открывается соединение.',
+        'shred-1': 'Приветствие на четыре части, для фильтра, который собирает две.',
+        'shred-2': 'На десять частей, ни в одной нет ничего, за что зацепиться. Цена — '
+            + 'запись и пауза на каждую.',
+        'records-1': 'Рукопожатие в двух записях TLS вместо одной. Это вообще не '
+            + 'дробление пакетов, и обходит оно другие фильтры.',
+        'records-2': 'Три записи вместо двух — для фильтра, который собирает обратно '
+            + 'две.',
+        'records-3': 'Две записи, разнесённые далеко. Медленнее на каждом соединении, '
+            + 'поэтому берут, когда быстрые не сработали.',
+        'mix-1': 'Отдельные записи, и каждая записана по частям. Для фильтра, который '
+            + 'собирает одно и не собирает другое.',
+        'mix-2': 'То же, с самыми длинными паузами, какие имеет смысл ждать. Берут, '
+            + 'когда не прошло ничего другого.',
+    },
+
+    forPhone: 'Доступен с телефона',
+    phoneHow: (address, port) => `На телефоне в настройках этой сети Wi-Fi укажите `
+        + `HTTP-прокси ${address}, порт ${port}.`,
+    phoneWarn: 'Пока это включено, любой в этой сети тоже может пустить свой трафик '
+        + 'через вас. Выключайте, когда телефону перестанет быть нужно.',
+
+    systemLimit: 'Программы, открывающие соединения сами, не спрашивая систему, — '
+        + 'часть игр и клиентов — не покрыты. Чтобы покрыть каждый пакет любой '
+        + 'программы, нужен драйвер в ядре, а таких прав инструмент не просит.',
     proxyBlind: 'Байты переносятся без чтения: трафик остаётся зашифрованным от конца '
         + 'до конца, и ключа к нему здесь нет.',
     proxyOverHttps: 'Имена, идущие через него, разрешаются по HTTPS. Дробление записи '
         + 'отвечает фильтру, читающему имя; это отвечает резольверу, отдающему чужой '
         + 'адрес, — а это совсем другая блокировка.',
-    proxyPac: 'Лучше указать браузеру этот адрес как файл автонастройки прокси. Через '
-        + 'прокси пойдут только сайты, которым понадобился другой способ записи, '
-        + 'остальной трафик его вообще не коснётся.',
-    proxyPacEmpty: 'Пока прокси никому не понадобился, и файл отправляет всё напрямую. '
-        + 'Проверьте сайт, который не открывается, и он туда добавится.',
     trying: 'пробую…',
     checkThisSite: 'Проверить этот сайт',
     dragMe: 'Создайте закладку с этим адресом. На странице, которая не открывается, '

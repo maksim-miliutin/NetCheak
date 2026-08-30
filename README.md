@@ -89,14 +89,30 @@ The last of those is not packet splitting at all: the handshake is carried in tw
 records of its own, which the protocol allows and a server reassembles, while a filter
 expecting one record per handshake sees only the first.
 
-Starting the proxies also points the system proxy setting at a file that routes only
-the hosts that needed help — everything else goes straight out and never touches this.
-The setting belongs to your user rather than the machine, so nothing asks for
-administrator rights, and stopping puts it back as it was.
+### Ready-made settings
+
+Zapret ships a folder of these called ALT, ALT2, ALT13 and so on, and a person tries
+them in turn without being told what any of them does. The ones here say what they do
+and are ordered by what they cost, so the list reads as an order to try rather than a
+menu to guess from — and the check above names the one to reach for, so usually there
+is nothing to guess at all.
+
+Starting one sets the system proxy for this user, so the browser and most other
+programs are covered without any of them being set up by hand. Only the hosts that
+needed help go through it; the rest goes straight out and never touches this. Nothing
+asks for administrator rights, and stopping puts the setting back as it was.
 
 Names going through the proxy are looked up over HTTPS. Splitting the write answers a
 filter reading the name out of a packet; resolving over HTTPS answers a resolver
 handing back somebody else's address. Separate blocks, separate answers.
+
+### From a phone
+
+Asked for by name, the proxies listen where the rest of the network can reach them and
+the address for the phone's Wi-Fi settings is shown. Everybody else on that network can
+route through it while that is on, which the app says plainly and which is why it is
+off by default. Only addresses inside a home network are offered: a public one would
+mean the proxy is open to the whole internet rather than to the flat.
 
 ### Every packet, whatever the program
 
@@ -159,6 +175,20 @@ apps/web/src/
 tools/          binary build, driver checks
 ```
 
+## Where the time goes
+
+Reading the page is two tenths of a millisecond against a month of history, because
+every question a page asks is answered down an index rather than by ranking a table.
+The sweep that keeps the file small used to cost thirty times everything else put
+together: it asked which samples belonged to an old check by building a list of every
+run id in the window, tens of thousands of them, to find twenty rows. Ids rise with
+the clock, so that question has an answer that is a boundary rather than a list.
+
+```
+latestStatus   0.09 ms     prune   8.35 ms  ->  0.37 ms
+history        0.20 ms
+```
+
 ## Rules the code keeps
 
 Things that are true have tests. Things that are unproven say so in the file: the
@@ -170,9 +200,19 @@ answer. A tool that guesses confidently is worse than one that admits a gap, bec
 the guess is what a person acts on.
 
 ```
-npm test          # 539 tests
+npm test          # 601 tests
 npm run typecheck
 ```
+
+Most of those are unit tests on things that can be decided without a network: what a
+verdict means, where a packet is cut, which resolver answered. Above them sit tests
+that drive the HTTP layer, and above those a smoke test that boots a real server on a
+real port and walks it as a person would.
+
+That last layer exists because every route passing on its own was not enough: a report
+that never learned about two later checks, a headline with nothing to show for a cause
+somebody added, a page gone blank on an answer that arrived short — each was found by
+hand, and a thing found by hand twice belongs in the suite.
 
 Both languages are compared against each other in tests: a cause added to the verdict
 without a line to show for it would print an empty headline, in whichever language the

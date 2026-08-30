@@ -24,6 +24,21 @@ import
 } from './api';
 import { EVERY_MS, isDue, nextInSeconds } from './watch';
 import { ceilingOf, plot } from './trace';
+import { answerFor, useLookup } from './lookup';
+import
+{
+    bestOf,
+    bookmarklet,
+    CHAIN,
+    format,
+    hopState,
+    linkState,
+    readEvasion,
+    readSize,
+    readTrace,
+    stopsAt,
+    type Link,
+} from './page';
 import { pickTongue, WORDS, type Words } from './words';
 import { showStamp } from './when';
 import type
@@ -47,17 +62,6 @@ import type
     Verdict,
 } from './types';
 
-/**
- * A link that opens this tool with whatever site the browser is on. It reads nothing
- * and stays nowhere: pressing it hands over one address and stops.
- */
-function bookmarklet(): string
-{
-    const here = `${window.location.origin}${window.location.pathname}`;
-
-    return `javascript:location.href=${JSON.stringify(here)}`
-        + '+"?check="+encodeURIComponent(location.host)';
-}
 
 export function App()
 {
@@ -74,16 +78,19 @@ export function App()
     const [finishedAt, setFinishedAt] = useState<number | null>(null);
     const [now, setNow] = useState(() => Date.now());
     const [opened, setOpened] = useState<string | null>(null);
-    const [traces, setTraces] = useState<Record<number, Trace | 'running'>>({});
-    const [paths, setPaths] = useState<Record<number, Path | 'running'>>({});
     const [sixth, setSixth] = useState<SixthCheck | null>(null);
+
+    // One shape, asked four ways. Written out separately they drifted: each was
+    // twenty lines of which one was its own.
+    const traces = useLookup<Trace>(traceTo, setError);
+    const paths = useLookup<Path>(measureMtu, setError);
+    const cuts = useLookup<Cut>(findCut, setError);
+    const evasions = useLookup<Evasion>(tryEvasion, setError);
     const [house, setHouse] = useState<Household | null>(null);
-    const [cuts, setCuts] = useState<Record<number, Cut | 'running'>>({});
     const [leaves, setLeaves] = useState<Outbound | null>(null);
     const [newer, setNewer] = useState<Newer | null>(null);
     const [proxy, setProxy] = useState<ProxyState | null>(null);
-    const [chosenWay, setChosenWay] = useState('name');
-    const [evasions, setEvasions] = useState<Record<number, Evasion | 'running'>>({});
+    const [forPhone, setForPhone] = useState(false);
     const [copied, setCopied] = useState(false);
     const [tongue, setTongue] = useState(() => pickTongue(navigator.languages ?? ['en']));
 
@@ -278,30 +285,6 @@ export function App()
         }
     };
 
-    const trace = async (id: number, host: string): Promise<void> =>
-    {
-        setTraces((current) => ({ ...current, [id]: 'running' }));
-
-        try
-        {
-            const found = await traceTo(host);
-
-            setTraces((current) => ({ ...current, [id]: found }));
-        }
-        catch (err)
-        {
-            setTraces((current) =>
-            {
-                const without = { ...current };
-                delete without[id];
-
-                return without;
-            });
-
-            setError((err as Error).message);
-        }
-    };
-
     // Written out for a support desk, where somebody who will never open this tool has
     // to be able to read it.
     const copyReport = async (): Promise<void> =>
@@ -314,54 +297,6 @@ export function App()
         }
         catch (err)
         {
-            setError((err as Error).message);
-        }
-    };
-
-    const sizes = async (id: number, host: string): Promise<void> =>
-    {
-        setPaths((current) => ({ ...current, [id]: 'running' }));
-
-        try
-        {
-            const found = await measureMtu(host);
-
-            setPaths((current) => ({ ...current, [id]: found }));
-        }
-        catch (err)
-        {
-            setPaths((current) =>
-            {
-                const without = { ...current };
-                delete without[id];
-
-                return without;
-            });
-
-            setError((err as Error).message);
-        }
-    };
-
-    const whoCuts = async (id: number, host: string): Promise<void> =>
-    {
-        setCuts((current) => ({ ...current, [id]: 'running' }));
-
-        try
-        {
-            const found = await findCut(host);
-
-            setCuts((current) => ({ ...current, [id]: found }));
-        }
-        catch (err)
-        {
-            setCuts((current) =>
-            {
-                const without = { ...current };
-                delete without[id];
-
-                return without;
-            });
-
             setError((err as Error).message);
         }
     };
@@ -381,42 +316,11 @@ export function App()
         }
     };
 
-    const wouldSplit = async (id: number, host: string): Promise<void> =>
-    {
-        setEvasions((current) => ({ ...current, [id]: 'running' }));
-
-        try
-        {
-            const found = await tryEvasion(host);
-
-            setEvasions((current) => ({ ...current, [id]: found }));
-        }
-        catch (err)
-        {
-            setEvasions((current) =>
-            {
-                const without = { ...current };
-                delete without[id];
-
-                return without;
-            });
-
-            setError((err as Error).message);
-        }
-    };
-
-    const switchProxy = async (way?: string): Promise<void> =>
+    const switchProxy = async (preset?: string): Promise<void> =>
     {
         try
         {
-            const state = await toggleProxy(way);
-
-            setProxy(state);
-
-            if (state.way !== null)
-            {
-                setChosenWay(state.way);
-            }
+            setProxy(await toggleProxy(preset, forPhone));
             setLeaves(null);
         }
         catch (err)
@@ -446,7 +350,10 @@ export function App()
                     <img className="roflanich" src="/roflanich.png" alt="" />
 
                     <header className="masthead">
-                        <b>netcheck</b>
+                        <b>
+                            <img className="tiny" src="/roflanich.png" alt="" />
+                            netcheck
+                        </b>
 
                         <span>
                             {status?.targets[0]?.checkedAt === undefined
@@ -571,14 +478,14 @@ export function App()
                             target={target}
                             past={history.find((h) => h.targetId === target.targetId) ?? null}
                             say={say}
-                            trace={traces[target.targetId] ?? null}
-                            onTrace={trace}
-                            path={paths[target.targetId] ?? null}
-                            onMeasure={sizes}
-                            cut={cuts[target.targetId] ?? null}
-                            onCut={whoCuts}
-                            evasion={evasions[target.targetId] ?? null}
-                            onEvade={wouldSplit}
+                            trace={answerFor(traces.found, target.targetId)}
+                            onTrace={traces.ask}
+                            path={answerFor(paths.found, target.targetId)}
+                            onMeasure={paths.ask}
+                            cut={answerFor(cuts.found, target.targetId)}
+                            onCut={cuts.ask}
+                            evasion={answerFor(evasions.found, target.targetId)}
+                            onEvade={evasions.ask}
                             onUseWay={switchProxy}
                             forget={forget}
                         />
@@ -604,48 +511,86 @@ export function App()
                     <button
                         type="button"
                         className="ghost spaced"
-                        onClick={() => void switchProxy(chosenWay)}
+                        onClick={() => void switchProxy()}
                     >
                         {proxy?.running === true ? say.stopProxy : say.startProxy}
                     </button>
-
-                    {/* Five ways get past five different filters, and which one is
-                        needed cannot be known from here without trying. */}
-                    {proxy?.running !== true && (
-                        <label className="picker">
-                            {say.pickWay}
-
-                            <select
-                                value={chosenWay}
-                                onChange={(event) => setChosenWay(event.target.value)}
-                            >
-                                {(proxy?.ways ?? []).map((way) => (
-                                    <option key={way} value={way}>
-                                        {say.wayNames[way] ?? way}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                    )}
                 </p>
 
-                {proxy?.running === true && proxy.port !== null && (
+                {/* Everybody on that network can route through it once it listens
+                    there, so it is asked for rather than assumed. */}
+                {proxy?.running !== true && (
+                    <label className="repeat small">
+                        <input
+                            type="checkbox"
+                            checked={forPhone}
+                            onChange={(event) => setForPhone(event.target.checked)}
+                        />
+                        {say.forPhone}
+                    </label>
+                )}
+
+                {proxy?.running === true && proxy.onNetwork && proxy.lan !== null && (
                     <div className="small">
-                        <p>{say.proxyRunning(proxy.port)}</p>
+                        <p>{say.phoneHow(proxy.lan, proxy.relays[0]?.port ?? 3128)}</p>
+                        <p className="blamed">{say.phoneWarn}</p>
+                    </div>
+                )}
+
+                {/* Zapret ships thirteen files called ALT and leaves a person to try
+                    them in turn. These say what they do, cheapest first. */}
+                {proxy?.running !== true && (proxy?.presets.length ?? 0) > 0 && (
+                    <div className="presets small">
+                        <p><b>{say.presets}</b></p>
+
+                        <ul>
+                            {proxy?.presets.map((preset) => (
+                                <li key={preset.id}>
+                                    <div>
+                                        <b>{say.presetNames[preset.id] ?? preset.id}</b>
+                                        <span>{say.presetSays[preset.id] ?? ''}</span>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => void switchProxy(preset.id)}
+                                    >
+                                        {say.usePreset}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {proxy?.running === true && (
+                    <div className="small relays">
+                        <p>
+                            {proxy.preset === null
+                                ? say.proxyRunning
+                                : say.presetRunning(say.presetNames[proxy.preset]
+                                    ?? proxy.preset)}
+                        </p>
+
+                        {/* The setting the system keeps is read by most of what
+                            speaks HTTP here, and it belongs to this user, so nothing
+                            asks for administrator rights. */}
+                        <p>{proxy.system ? say.systemSet : say.systemFailed}</p>
+                        <p>{say.systemLimit}</p>
+
+                        <ul className="ports">
+                            {proxy.relays.map((relay) => (
+                                <li key={relay.port}>
+                                    <code className="carry">127.0.0.1:{relay.port}</code>
+                                    <span>{say.wayNames[relay.way] ?? relay.way}</span>
+                                </li>
+                            ))}
+                        </ul>
+
                         <p>{say.proxyBlind}</p>
 
                         {proxy.overHttps && <p>{say.proxyOverHttps}</p>}
 
-                        {/* Routing only what needs it means less of a person's
-                            traffic passes through this tool, not more. */}
-                        <p>
-                            <code className="carry">
-                                {`${window.location.origin}/api/proxy.pac`}
-                            </code>
-                            {' '}{say.proxyPac}
-                        </p>
-
-                        {needsProxy(evasions) === 0 && <p>{say.proxyPacEmpty}</p>}
                     </div>
                 )}
 
@@ -684,7 +629,9 @@ export function App()
                     refuses to render a javascript: address, and it is right to —
                     that shape is how pages get talked into running somebody else's
                     code. */}
-                    <code className="carry">{bookmarklet()}</code>
+                    <code className="carry">
+                        {bookmarklet(window.location.origin, window.location.pathname)}
+                    </code>
                     {' '}{say.dragMe}
                 </p>
             </details>
@@ -709,24 +656,7 @@ export function App()
 // The tool follows a chain: this machine, the router, the line past it, the names,
 // then the connections themselves. Every verdict is a statement about where that
 // chain stops, so the chain is drawn and the break marked on it.
-const CHAIN = ['This machine', 'Router', 'Provider', 'Names', 'Connections'] as const;
 
-type Link = (typeof CHAIN)[number];
-
-const BREAKS: Record<Verdict['cause'], Link | null> =
-{
-    'none': null,
-    'never-checked': null,
-    'link': 'Router',
-    'router': 'Router',
-    'provider': 'Provider',
-    'dns': 'Names',
-    'sinkholed': 'Names',
-    'filtered': 'Connections',
-    'handshake-cut': 'Connections',
-    'remote': null,
-    'unstable': null,
-};
 
 function Chain({ cause, say, has, opened, onOpen }:
 {
@@ -737,14 +667,13 @@ function Chain({ cause, say, has, opened, onOpen }:
     onOpen: (link: Link) => void;
 })
 {
-    const broken = BREAKS[cause];
-    const stops = broken === null ? CHAIN.length : CHAIN.indexOf(broken);
+    const stops = stopsAt(cause);
 
     return (
         <ol className="chain" aria-label="where the check reached">
             {CHAIN.map((link, index) =>
             {
-                const shape = state(index, stops, cause);
+                const shape = linkState(index, stops, cause);
 
                 // A link with something to say becomes the way to say it: the detail
                 // belongs where a reader goes looking for it, not in a heap below.
@@ -769,20 +698,6 @@ function Chain({ cause, say, has, opened, onOpen }:
     );
 }
 
-function state(index: number, stops: number, cause: Verdict['cause']): string
-{
-    if (cause === 'never-checked')
-    {
-        return 'link untested';
-    }
-
-    if (index < stops)
-    {
-        return 'link passed';
-    }
-
-    return index === stops ? 'link broken' : 'link untested';
-}
 
 // The point of the tool is the sentence, not the table: the table is the evidence
 // underneath it.
@@ -1020,12 +935,6 @@ function Lane({ target, past, say, trace, onTrace, path, onMeasure, cut, onCut,
  * The number alone says nothing. What matters is how far below the ordinary size it
  * sits, and what a person notices when it does.
  */
-/** How many sites have turned out to need the proxy, so the file can say so. */
-function needsProxy(evasions: Record<number, Evasion | 'running'>): number
-{
-    return Object.values(evasions)
-        .filter((one): one is Evasion => one !== 'running' && one.splittingHelps).length;
-}
 
 /**
  * What each way of writing got back, and the one to use. Naming the working way and
@@ -1059,11 +968,7 @@ function Ways({ evasion, say, onUseWay }:
             )}
 
             {evasion.works !== null && (
-                <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => onUseWay(evasion.works ?? '')}
-                >
+                <button type="button" className="ghost" onClick={() => onUseWay('')}>
                     {say.useThisWay(say.wayNames[evasion.works] ?? evasion.works)}
                 </button>
             )}
@@ -1071,34 +976,23 @@ function Ways({ evasion, say, onUseWay }:
     );
 }
 
-/** Three outcomes, and only one of them is worth a person changing anything about. */
-function readEvasion(evasion: Evasion): string
-{
-    if (evasion.splittingHelps)
-    {
-        return 'helps';
-    }
-
-    return evasion.whole === 'greeted' ? 'no-block' : 'no-help';
-}
 
 function Sizes({ path, say }: { path: Path; say: Words })
 {
-    if (path.error !== null)
+    const read = readSize(path);
+
+    if (read === 'unknown')
     {
-        return <p className="path small">{path.error}</p>;
+        return <p className="path small">{path.error ?? say.emptyTrace}</p>;
     }
 
-    if (path.mtu === null)
-    {
-        return <p className="path small">{say.emptyTrace}</p>;
-    }
-
-    const short = path.mtu < path.ordinary;
+    const short = read === 'short';
 
     return (
         <p className={short ? 'path small blamed' : 'path small'}>
-            {short ? say.mtuShort(path.mtu, path.ordinary) : say.mtuFull(path.mtu)}
+            {short
+                ? say.mtuShort(path.mtu ?? 0, path.ordinary)
+                : say.mtuFull(path.mtu ?? 0)}
         </p>
     );
 }
@@ -1109,51 +1003,31 @@ function Sizes({ path, say }: { path: Path; say: Words })
  */
 function Path({ trace, say }: { trace: Trace; say: Words })
 {
-    if (trace.error !== null)
-    {
-        return <p className="path small">{trace.error}</p>;
-    }
+    const read = readTrace(trace);
 
-    if (trace.hops.length === 0)
+    if (read !== 'hops')
     {
-        return <p className="path small">{say.emptyTrace}</p>;
+        return (
+            <p className="path small">
+                {read === 'error' ? trace.error : say.emptyTrace}
+            </p>
+        );
     }
 
     return (
         <ol className="path">
             {trace.hops.map((hop) => (
-                <li key={hop.number} className={quiet(hop, trace.silentFrom)}>
+                <li key={hop.number} className={hopState(hop, trace.silentFrom)}>
                     <span className="where">{hop.address ?? '—'}</span>
-                    <span className="took">{best(hop.times)}</span>
+                    <span className="took">{bestOf(hop.times)}</span>
                 </li>
             ))}
         </ol>
     );
 }
 
-function quiet(hop: { number: number; times: (number | null)[] }, from: number | null): string
-{
-    if (from !== null && hop.number >= from)
-    {
-        return 'hop silent';
-    }
-
-    return hop.times.every((time) => time === null) ? 'hop passing' : 'hop';
-}
-
-/** The quickest of the probes, since the slow one is usually the router being busy. */
-function best(times: (number | null)[]): string
-{
-    const answered = times.filter((time): time is number => time !== null);
-
-    return answered.length === 0 ? '—' : `${Math.min(...answered)} ms`;
-}
 
 
 
 
 
-function format(value: number | null, unit: string): string
-{
-    return value === null ? '—' : `${Math.round(value * 10) / 10}${unit}`;
-}

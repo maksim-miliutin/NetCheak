@@ -1,0 +1,182 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Database } from '../db/database.ts';
+import { ChecksRepository } from '../db/checks.repository.ts';
+import { buildServer } from './server.ts';
+import { choosePort } from './port.ts';
+
+/**
+ * The layer nothing else covers: a real server on a real port, asked over a real
+ * socket. Every route was reachable in the tests below it and the whole still broke —
+ * a report that never learned about two checks, a headline with nothing to show, a
+ * page gone blank on an answer that arrived short. Those were found by hand, and a
+ * thing found by hand twice belongs in the suite.
+ */
+
+const FILE = join(tmpdir(), `netcheck-smoke-${process.pid}.db`);
+
+let base = '';
+let app: Awaited<ReturnType<typeof buildServer>>;
+
+async function ask(path: string, init?: RequestInit): Promise<Response>
+{
+    return await fetch(`${base}${path}`, init);
+}
+
+/** What came back, as something with fields rather than as unknown. */
+async function body<T>(response: Response): Promise<T>
+{
+    return await response.json() as T;
+}
+
+beforeAll(async () =>
+{
+    for (const suffix of ['', '-wal', '-shm'])
+    {
+        rmSync(`${FILE}${suffix}`, { force: true });
+    }
+
+    const db = new Database(FILE);
+
+    await db.migrate(join(import.meta.dirname, '..', '..', 'migrations'));
+
+    const { port } = await choosePort(38500);
+
+    app = await buildServer({ db, repository: new ChecksRepository(db), port,
+        logLevel: 'silent' });
+
+    await app.listen({ port, host: '127.0.0.1' });
+
+    base = `http://127.0.0.1:${port}`;
+}, 30_000);
+
+afterAll(async () =>
+{
+    await app.close();
+
+    for (const suffix of ['', '-wal', '-shm'])
+    {
+        rmSync(`${FILE}${suffix}`, { force: true });
+    }
+});
+
+describe('a server on a real port', () =>
+{
+    it('answers that it is alive', async () =>
+    {
+        const response = await ask('/api/health');
+
+        expect(response.status).toBe(200);
+        expect((await body<{ status: string }>(response)).status).toBeTruthy();
+    });
+
+    // Reading the page must not wait on anything: it once waited a second and a half
+    // for a gateway probe on every load.
+    it.each(['/api/status', '/api/history', '/api/targets', '/api/tunnels', '/api/outbound'])(
+        'answers %s without asking the network', async (path) =>
+        {
+            const at = Date.now();
+            const response = await ask(path);
+
+            expect(response.status).toBe(200);
+            expect(Date.now() - at).toBeLessThan(1000);
+        });
+
+    it('hands back a report as text', async () =>
+    {
+        const response = await ask('/api/report');
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toContain('text/plain');
+        expect(await response.text()).toContain('netcheck');
+    });
+
+    // Anything but this machine is refused before the route is reached, because a
+    // request with a plain content type never triggers a preflight.
+    it('refuses a request from somewhere else', async () =>
+    {
+        const response = await ask('/api/status', { headers: { origin: 'http://evil.test' } });
+
+        expect(response.status).toBe(403);
+    });
+
+    it('takes a target, watches it, and gives it back', async () =>
+    {
+        const added = await ask('/api/targets',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ target: 'https://smoke.example:8443/x' }),
+        });
+
+        expect(added.status).toBe(200);
+
+        type Added = { target: { id: number; host: string; port: number } };
+
+        const { target } = await body<Added>(added);
+
+        expect(target).toMatchObject({ host: 'smoke.example', port: 8443 });
+
+        const listed = await body<{ targets: { host: string }[] }>(await ask('/api/targets'));
+
+        expect(listed.targets.some((one) => one.host === 'smoke.example')).toBe(true);
+
+        const removed = await ask(`/api/targets/${target.id}`, { method: 'DELETE' });
+
+        expect(removed.status).toBe(204);
+    });
+
+    it('says why it refused a target rather than only that it did', async () =>
+    {
+        const response = await ask('/api/targets',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ target: 'not a host' }),
+        });
+
+        expect(response.status).toBe(400);
+        const refused = await body<{ error: { message: string } }>(response);
+
+        expect(refused.error.message.length).toBeGreaterThan(10);
+    });
+
+    // The proxies are the largest thing this does to a machine, so starting and
+    // stopping them has to work from the outside, not only in a mock.
+    it('starts every proxy and stops them again', async () =>
+    {
+        type Relays = { running: boolean; relays: { port: number }[] };
+
+        const started = await body<Relays>(await ask('/api/proxy', { method: 'POST' }));
+
+        expect(started.running).toBe(true);
+        expect(started.relays.length).toBeGreaterThan(1);
+
+        const ports = started.relays.map((one) => one.port);
+
+        expect(new Set(ports).size).toBe(ports.length);
+
+        const stopped = await body<Relays>(await ask('/api/proxy', { method: 'POST' }));
+
+        expect(stopped.running).toBe(false);
+        expect(stopped.relays).toEqual([]);
+    }, 20_000);
+
+    it('hands back a routing file a browser could read', async () =>
+    {
+        const response = await ask('/api/proxy.pac');
+
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain('FindProxyForURL');
+    });
+
+    it('answers a route nobody has in the same shape as any other error', async () =>
+    {
+        const response = await ask('/api/nothing-here');
+
+        expect(response.status).toBe(404);
+        expect((await body<{ error: unknown }>(response)).error).toBeTruthy();
+    });
+});

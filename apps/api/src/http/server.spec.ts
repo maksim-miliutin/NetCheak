@@ -329,7 +329,7 @@ describe('HTTP API', () =>
     {
         const response = await app.inject({ method: 'GET', url: '/api/proxy' });
 
-        expect(response.json()).toMatchObject({ running: false, port: null });
+        expect(response.json()).toMatchObject({ running: false, relays: [] });
         expect(response.json().ways.length).toBeGreaterThan(1);
     });
 
@@ -338,38 +338,75 @@ describe('HTTP API', () =>
         const started = await app.inject({ method: 'POST', url: '/api/proxy' });
 
         expect(started.json().running).toBe(true);
-        expect(started.json().port).toBeGreaterThan(0);
+
+        // One per way, each on its own port: different sites are stopped by different
+        // filters and a single way serves one of them and fails the rest.
+        expect(started.json().relays).toHaveLength(started.json().ways.length);
+        expect(new Set(started.json().relays.map((r: { port: number }) => r.port)).size)
+            .toBe(started.json().relays.length);
 
         const stopped = await app.inject({ method: 'POST', url: '/api/proxy' });
 
         expect(stopped.json().running).toBe(false);
     });
 
-    // A way nobody offered is not a way to write, and falling back beats failing.
-    it('falls back to cutting through the name when asked for something unknown', async () =>
+    // Zapret ships thirteen files called ALT and leaves a person to try them; naming
+    // one starts only that one.
+    it('starts only the proxy a named preset asks for', async () =>
     {
         const started = await app.inject(
         {
             method: 'POST',
             url: '/api/proxy',
-            payload: { way: 'nonsense' },
+            payload: { preset: 'records-1' },
         });
 
-        expect(started.json().way).toBe('name');
+        expect(started.json().relays).toHaveLength(1);
+        expect(started.json().relays[0].way).toBe('records');
+        expect(started.json().preset).toBe('records-1');
 
         await app.inject({ method: 'POST', url: '/api/proxy' });
     });
 
-    it('starts with the way it was asked for', async () =>
+    it('offers the presets cheapest first', async () =>
+    {
+        const response = await app.inject({ method: 'GET', url: '/api/proxy' });
+
+        expect(response.json().presets[0].id).toBe('lite-1');
+    });
+
+    // Everybody on that network can route through it once it listens there, so it
+    // stays on this machine unless asked otherwise.
+    it('listens only on this machine unless asked otherwise', async () =>
+    {
+        const started = await app.inject({ method: 'POST', url: '/api/proxy' });
+
+        expect(started.json().onNetwork).toBe(false);
+        expect(started.json().lan).toBeNull();
+
+        await app.inject({ method: 'POST', url: '/api/proxy' });
+    });
+
+    it('says where a phone would reach it once asked', async () =>
     {
         const started = await app.inject(
         {
             method: 'POST',
             url: '/api/proxy',
-            payload: { way: 'records' },
+            payload: { preset: 'lite-1', onNetwork: true },
         });
 
-        expect(started.json().way).toBe('records');
+        expect(started.json().onNetwork).toBe(true);
+
+        await app.inject({ method: 'POST', url: '/api/proxy' });
+    });
+
+    it('runs one proxy for every way it knows', async () =>
+    {
+        const started = await app.inject({ method: 'POST', url: '/api/proxy' });
+        const ways = started.json().relays.map((relay: { way: string }) => relay.way);
+
+        expect(ways.sort()).toEqual([...started.json().ways].sort());
 
         await app.inject({ method: 'POST', url: '/api/proxy' });
     });

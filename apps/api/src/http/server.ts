@@ -16,10 +16,8 @@ import { report } from '../report/report.ts';
 import { findMtu } from '../mtu/mtu.ts';
 import { findCut } from '../tls/cut.ts';
 import { tryEvasion } from '../tls/evasion.ts';
-import { startProxy } from '../proxy/proxy.ts';
-import { WAYS, type Way } from '../proxy/ways.ts';
-import { buildPac } from '../proxy/pac.ts';
-import { choosePort } from './port.ts';
+import { Proxies, proxyRoutes } from './proxy.routes.ts';
+import { presetFor } from '../proxy/presets.ts';
 import { outbound } from '../report/outbound.ts';
 import { checkUpdate } from '../update/version.ts';
 import { checkDns } from '../dns/resolve.ts';
@@ -28,6 +26,8 @@ import { isAddress, parseTarget } from '../targets/address.ts';
 
 export interface ServerOptions
 {
+    /** Where this server is reachable, so the system can be pointed at its file. */
+    port?: number;
     /** The running version, so the update check has something to compare against. */
     version?: string;
     db: Database;
@@ -89,14 +89,7 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
     // Off until asked for. It relays bytes without looking at them, but it is still a
     // thing standing between the browser and the network, and that is not something
     // to switch on behind somebody's back.
-    let proxy:
-        { server: ReturnType<typeof startProxy>; port: number; way: Way; overHttps: boolean }
-        | null = null;
-
-    // Hosts where a different way of writing was needed. Only these go through the
-    // proxy: routing everything through it would put traffic there that has no
-    // reason to be.
-    const needing = new Set<string>();
+    const proxies = new Proxies();
 
     const { db, repository } = options;
 
@@ -164,6 +157,8 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
                 },
             });
         });
+    proxyRoutes(app, { proxies, port: options.port ?? 3001 });
+
     app.get('/api/health', async () =>
     {
         try
@@ -319,71 +314,28 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
 
         const found = await tryEvasion(parsed.address.host, parsed.address.port);
 
-        if (found.splittingHelps)
+        // Which way worked is remembered with the host: the file below sends it to
+        // the port running that way, not to whichever proxy happens to be first.
+        if (found.splittingHelps && found.works !== null)
         {
-            needing.add(parsed.address.host);
+            proxies.remember(parsed.address.host, found.works);
         }
 
-        return found;
+        // Naming the way and leaving a person to match it against a list of presets
+        // is half an answer; the preset to reach for goes with it.
+        return { ...found, preset: presetFor(found.works)?.id ?? null };
     });
 
-    /**
-     * A proxy the browser can be pointed at, which cuts the first write so no single
-     * packet carries the wanted name. On CONNECT it relays bytes blind: the traffic
-     * stays encrypted end to end and this holds no key to any of it.
-     */
-    app.post<{ Body: { way?: string; overHttps?: boolean } }>('/api/proxy', async (request) =>
-    {
-        if (proxy !== null)
-        {
-            proxy.server.close();
-            proxy = null;
-
-            return { running: false, port: null, way: null, ways: WAYS, overHttps: false };
-        }
-
-        const asked = request.body?.way;
-        const way: Way = WAYS.includes(asked as Way) ? asked as Way : 'name';
-
-        const { port } = await choosePort(3128);
-
-        // Splitting the write answers a filter reading the name; resolving over HTTPS
-        // answers a resolver giving somebody else's address. They are separate blocks
-        // and this can be told to handle either.
-        const overHttps = request.body?.overHttps ?? true;
-
-        proxy = { server: startProxy({ port, way, overHttps }), port, way, overHttps };
-
-        return { running: true, port, way, ways: WAYS, overHttps };
-    });
-
-    app.get('/api/proxy', async () => ({
-        running: proxy !== null,
-        port: proxy?.port ?? null,
-        way: proxy?.way ?? null,
-        ways: WAYS,
-        overHttps: proxy?.overHttps ?? false,
-    }));
-
-    /**
-     * The file a browser reads instead of being pointed at the proxy outright. Less
-     * of a person's traffic passing through this tool is the point.
-     */
-    app.get('/api/proxy.pac', async (request, reply) =>
-    {
-        const pac = buildPac([...needing], proxy?.port ?? 3128);
-
-        return reply.type('application/x-ns-proxy-autoconfig').send(pac);
-    });
-
-    app.addHook('onClose', async () => proxy?.server.close());
+    // Closing without putting the setting back would leave the machine pointed at a
+    // proxy that has stopped, which is worse than never having started.
+    app.addHook('onClose', async () => await proxies.stop());
 
     // Everywhere this tool sends a packet, built from the values the code uses. A
     // promise about privacy written in prose goes stale the first time somebody adds
     // a call; this list cannot.
     app.get('/api/outbound', async () =>
-        outbound(repository.listTargets(), watchingForUpdates, proxy?.port ?? null,
-            proxy?.overHttps ?? false));
+        outbound(repository.listTargets(), watchingForUpdates,
+            proxies.port, proxies.encrypted));
 
     // Off unless asked for. A tool that promises no telemetry cannot quietly phone
     // home, however good the reason, so the ask is a button rather than a habit.

@@ -130,6 +130,42 @@ describe('the two tongues', () =>
             .toEqual(Object.keys(WORDS.en.wayNames).sort());
     });
 
+    // A preset is named the same in both, the way a product's modes are: what the
+    // name means is in the sentence beside it, which is what gets translated.
+    it('names each preset identically in both', () =>
+    {
+        expect(WORDS.ru.presetNames).toEqual(WORDS.en.presetNames);
+    });
+
+    // Short is the whole point: a name that runs to a sentence is the sentence.
+    it('keeps every preset name short', () =>
+    {
+        for (const name of Object.values(WORDS.en.presetNames))
+        {
+            expect(name.length).toBeLessThan(12);
+        }
+    });
+
+    it('says what each preset does, in both', () =>
+    {
+        for (const id of Object.keys(WORDS.en.presetNames))
+        {
+            expect(WORDS.en.presetSays[id]?.length ?? 0).toBeGreaterThan(30);
+            expect(WORDS.ru.presetSays[id]?.length ?? 0).toBeGreaterThan(30);
+        }
+    });
+
+    // Opening it to the network is a thing with a cost, and the wording must name it
+    // rather than describe a convenience.
+    it('warns what listening on the network means, in both', () =>
+    {
+        for (const tongue of [WORDS.en, WORDS.ru])
+        {
+            expect(tongue.phoneWarn.toLowerCase())
+                .toMatch(/anybody else|любой в этой сети/);
+        }
+    });
+
     it('carries every word in both', () =>
     {
         expect(Object.keys(WORDS.ru).sort()).toEqual(Object.keys(WORDS.en).sort());
