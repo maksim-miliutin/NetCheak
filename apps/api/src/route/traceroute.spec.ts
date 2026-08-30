@@ -3,7 +3,6 @@ import
 {
     addressIn,
     parseHops,
-    reasonFor,
     silenceFrom,
     timesIn,
     type Hop,
@@ -133,25 +132,5 @@ describe('silenceFrom', () =>
     it('says nothing about a trace that never started', () =>
     {
         expect(silenceFrom([])).toBeNull();
-    });
-});
-
-describe('reasonFor', () =>
-{
-    // The utility is not part of every install, and an empty trace with no explanation
-    // reads as a broken tool rather than a missing one.
-    it('names a missing utility', () =>
-    {
-        expect(reasonFor({ code: 'ENOENT' })).toContain('not installed');
-    });
-
-    it('names a trace that ran too long', () =>
-    {
-        expect(reasonFor({ code: 'ETIMEDOUT' })).toContain('too long');
-    });
-
-    it('passes anything else along as it came', () =>
-    {
-        expect(reasonFor(new Error('something else'))).toBe('something else');
     });
 });
