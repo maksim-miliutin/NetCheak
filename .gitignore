@@ -6,3 +6,5 @@ dist/
 *.db-wal
 *.db-shm
 build/
+WinDivert.dll
+WinDivert64.sys
