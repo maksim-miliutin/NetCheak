@@ -43,7 +43,7 @@ beforeAll(async () =>
 
     await db.migrate(join(import.meta.dirname, '..', '..', 'migrations'));
 
-    const { port } = await choosePort(38500);
+    const { port } = await choosePort(18500);
 
     app = await buildServer({ db, repository: new ChecksRepository(db), port,
         logLevel: 'silent' });
@@ -184,4 +184,174 @@ describe('a server on a real port', () =>
         expect(response.status).toBe(404);
         expect((await body<{ error: unknown }>(response)).error).toBeTruthy();
     });
+
+    it('keeps a host routed by hand and hands it back', async () =>
+    {
+        const added = await ask('/api/proxy/routes',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ host: 'Blocked.Example', way: 'name' }),
+        });
+
+        expect(added.status).toBe(200);
+
+        const state = await body<{ routed: { host: string; byHand: boolean }[] }>(added);
+
+        expect(state.routed).toContainEqual(
+            { host: 'blocked.example', way: 'name', byHand: true });
+
+        const gone = await ask('/api/proxy/routes/blocked.example', { method: 'DELETE' });
+
+        expect(gone.status).toBe(200);
+        expect((await body<{ routed: unknown[] }>(gone)).routed).toEqual([]);
+    });
+
+    it('refuses a host that is not one, and says which part it refused', async () =>
+    {
+        const response = await ask('/api/proxy/routes',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ host: 'not a host', way: 'name' }),
+        });
+
+        expect(response.status).toBe(400);
+        expect((await body<{ error: string }>(response)).error).toContain('host');
+    });
+
+    it('refuses a way of writing it does not have', async () =>
+    {
+        const response = await ask('/api/proxy/routes',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ host: 'example.com', way: 'origami' }),
+        });
+
+        expect(response.status).toBe(400);
+        expect((await body<{ error: string }>(response)).error).toContain('way');
+    });
+
+    it('says the driver is not running until it is asked to run', async () =>
+    {
+        const state = await body<{ running: boolean; lines: unknown[] }>(
+            await ask('/api/divert'));
+
+        expect(state.running).toBe(false);
+        expect(state.lines).toEqual([]);
+    });
+
+    it('refuses a way of spoiling a copy that it does not have', async () =>
+    {
+        const response = await ask('/api/divert',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ running: true, fooling: 'origami' }),
+        });
+
+        expect(response.status).toBe(400);
+        expect((await body<{ error: { message: string } }>(response)).error.message)
+            .toContain('origami');
+    });
+
+    it('refuses a count of hops that is not one', async () =>
+    {
+        const response = await ask('/api/divert',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ running: true, ttl: 900 }),
+        });
+
+        expect(response.status).toBe(400);
+        expect((await body<{ error: { message: string } }>(response)).error.message)
+            .toMatch(/hops/i);
+    });
+
+    it('refuses a recording that is not there', async () =>
+    {
+        const response = await ask('/api/divert',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ running: true, hello: 'nothing-recorded-here.bin' }),
+        });
+
+        expect(response.status).toBe(400);
+        expect((await body<{ error: { message: string } }>(response)).error.message)
+            .toContain('recorded');
+    });
+
+    it('stops without minding that nothing was running', async () =>
+    {
+        const response = await ask('/api/divert',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ running: false }),
+        });
+
+        expect(response.status).toBe(200);
+        expect((await body<{ running: boolean }>(response)).running).toBe(false);
+    });
+
+    it('says nothing has been found for any site yet', async () =>
+    {
+        const found = await body<{ found: unknown[] }>(await ask('/api/divert/found'));
+
+        expect(found.found).toEqual([]);
+    });
+
+    it('refuses a search for something that is not a host', async () =>
+    {
+        const response = await ask('/api/divert/search',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ target: 'not a host at all' }),
+        });
+
+        expect(response.status).toBe(400);
+        expect((await body<{ error: { message: string } }>(response)).error.message)
+            .toBeTruthy();
+    });
+});
+
+/**
+ * Closing has hung twice now: once on a database nobody closed, once on connections a
+ * client was still holding. Both times it looked like the suite freezing rather than
+ * like a bug, and both times it was a bug.
+ */
+describe('closing', () =>
+{
+    it('lets go of a connection somebody else is still holding', async () =>
+    {
+        const file = join(tmpdir(), `netcheck-closing-${process.pid}.db`);
+        const db = new Database(file);
+
+        await db.migrate(join(import.meta.dirname, '..', '..', 'migrations'));
+
+        const { port } = await choosePort(18700);
+        const second = await buildServer({ db, repository: new ChecksRepository(db),
+            port, logLevel: 'silent' });
+
+        await second.listen({ port, host: '127.0.0.1' });
+
+        // Asked for and left unread, which is what a browser tab does all day.
+        await fetch(`http://127.0.0.1:${port}/api/status`);
+
+        const started = Date.now();
+
+        await second.close();
+        db.close();
+
+        for (const suffix of ['', '-wal', '-shm'])
+        {
+            rmSync(`${file}${suffix}`, { force: true });
+        }
+
+        expect(Date.now() - started).toBeLessThan(5000);
+    }, 20_000);
 });
