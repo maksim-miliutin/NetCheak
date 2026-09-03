@@ -1,4 +1,5 @@
 import type { Database } from './database.ts';
+import { AGES, sweepOf } from './keeping.ts';
 import type { TargetResult } from '../probe/probe.ts';
 import type { SpeedResult } from '../speed/speed.ts';
 
@@ -9,6 +10,21 @@ export interface TargetRow
     host: string;
     port: number;
     enabled: boolean;
+}
+
+export interface RoutedHost
+{
+    host: string;
+    way: string;
+    byHand: boolean;
+}
+
+export interface DriverFound
+{
+    host: string;
+    fooling: string;
+    ttl: number;
+    repeats: number;
 }
 
 export interface SamplePoint
@@ -37,6 +53,8 @@ export interface Swept
 {
     samples: number;
     checks: number;
+    /** Names a check wrote down by itself and nobody asked to keep. */
+    names: number;
 }
 
 export interface History
@@ -258,7 +276,12 @@ export class ChecksRepository
      * yet they are two thirds of the file. The summaries are what the history draws,
      * so they outlive the attempts they were drawn from by a long way.
      */
-    prune(sampleDays = 7, runDays = 365): Swept
+    /**
+     * Everything that has grown old, gone. How old is old lives in `keeping.ts` as a
+     * list rather than in this signature: two numbers here meant a table added later
+     * was swept only if somebody remembered to come back and add a third.
+     */
+    prune(sampleDays = 7): Swept
     {
         // Asking which samples belong to an old check built a list of every run id
         // in the window — tens of thousands of them, to find twenty rows. Ids rise
@@ -271,11 +294,25 @@ export class ChecksRepository
             : this.db.prepare('DELETE FROM samples WHERE target_run_id <= ?').run(edge);
 
         // Runs go with their check, and their samples go with them: the cascade does it.
-        const checks = this.db
-            .prepare("DELETE FROM checks WHERE started_at < datetime('now', ?)")
-            .run(`-${runDays} days`);
+        let checks = 0;
+        let names = 0;
 
-        return { samples: Number(samples.changes), checks: Number(checks.changes) };
+        for (const age of AGES)
+        {
+            const gone = Number(this.db.prepare(sweepOf(age)).run(`-${age.days} days`)
+                .changes);
+
+            if (age.table === 'checks')
+            {
+                checks = gone;
+            }
+            else
+            {
+                names += gone;
+            }
+        }
+
+        return { samples: Number(samples.changes), checks, names };
     }
 
     /** The last run belonging to a check older than the window, or none. */
@@ -342,6 +379,74 @@ export class ChecksRepository
         }
 
         return [...byTarget.values()];
+    }
+
+    /** Every host that needs a way of its own, the ones set by hand first. */
+    listRouted(): RoutedHost[]
+    {
+        const rows = this.db.prepare(`
+            SELECT host, way, by_hand AS "byHand"
+            FROM routed_hosts
+            ORDER BY by_hand DESC, host
+        `).all() as unknown as { host: string; way: string; byHand: number }[];
+
+        return rows.map((row) => ({ ...row, byHand: row.byHand === 1 }));
+    }
+
+    /**
+     * A host set by hand is not overwritten by what a check later found: the person
+     * chose, and a check finding something else is not a reason to change their mind.
+     */
+    routeHost(host: string, way: string, byHand: boolean): void
+    {
+        this.db.prepare(`
+            INSERT INTO routed_hosts (host, way, by_hand) VALUES (?, ?, ?)
+            ON CONFLICT (host) DO UPDATE SET
+                way = CASE WHEN routed_hosts.by_hand = 1 AND excluded.by_hand = 0
+                    THEN routed_hosts.way ELSE excluded.way END,
+                by_hand = MAX(routed_hosts.by_hand, excluded.by_hand),
+                noted_at = datetime('now')
+        `).run(host, way, byHand ? 1 : 0);
+    }
+
+    forgetRoute(host: string): boolean
+    {
+        const done = this.db.prepare('DELETE FROM routed_hosts WHERE host = ?').run(host);
+
+        return Number(done.changes) > 0;
+    }
+
+    /** Every site something was found for, newest first. */
+    listDriverFound(): DriverFound[]
+    {
+        return this.db.prepare(`
+            SELECT host, fooling, ttl, repeats
+            FROM driver_found
+            ORDER BY found_at DESC, host
+        `).all() as unknown as DriverFound[];
+    }
+
+    /**
+     * A later search overrules an earlier one: what worked last week may not work
+     * today, and the fresher answer is the one that was actually tried.
+     */
+    rememberDriver(found: DriverFound): void
+    {
+        this.db.prepare(`
+            INSERT INTO driver_found (host, fooling, ttl, repeats) VALUES (?, ?, ?, ?)
+            ON CONFLICT (host) DO UPDATE SET
+                fooling = excluded.fooling,
+                ttl = excluded.ttl,
+                repeats = excluded.repeats,
+                found_at = datetime('now')
+        `).run(found.host, found.fooling, found.ttl, found.repeats);
+    }
+
+    forgetDriver(host: string): boolean
+    {
+        const done = this.db.prepare('DELETE FROM driver_found WHERE host = ?').run(host);
+
+        return Number(done.changes) > 0;
     }
 
     private insertSamples(runId: number, result: TargetResult): void

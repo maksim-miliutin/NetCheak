@@ -78,6 +78,16 @@ describe('ChecksRepository', () =>
         expect(only(targets, 'target')).toMatchObject({ port: 443, enabled: true });
     });
 
+    // A site nobody objects to measures the line and nothing else, which is the wrong
+    // side of the question this tool asks.
+    it('watches nothing that sits on the far side of the question', () =>
+    {
+        const hosts = repository.listTargets().map((one) => one.host);
+
+        expect(hosts).not.toContain('ya.ru');
+        expect(hosts).toContain('wikipedia.org');
+    });
+
     it('adds a target and hands it back', () =>
     {
         const added = repository.addTarget('Mine', 'my.example', 8443);
@@ -262,7 +272,7 @@ describe('ChecksRepository', () =>
 
         repository.saveResult(repository.createCheck(1, 2000), target.id, resultFor([ok(10)]));
 
-        expect(repository.prune()).toEqual({ samples: 0, checks: 0 });
+        expect(repository.prune()).toEqual({ samples: 0, checks: 0, names: 0 });
         expect(count(db, 'samples')).toBe(1);
     });
 
@@ -376,5 +386,140 @@ describe('ChecksRepository', () =>
         expect(() => repository.saveResult(checkId, target.id, broken)).toThrow();
 
         expect(count(db, 'target_runs')).toBe(0);
+    });
+
+    describe('routed hosts', () =>
+    {
+        it('keeps a host and the way that got it through', () =>
+        {
+            repository.routeHost('example.com', 'name', false);
+
+            expect(repository.listRouted())
+                .toEqual([{ host: 'example.com', way: 'name', byHand: false }]);
+        });
+
+        it('does not let a later finding overrule what a person set by hand', () =>
+        {
+            repository.routeHost('example.com', 'tiny', true);
+            repository.routeHost('example.com', 'name', false);
+
+            expect(repository.listRouted()[0].way).toBe('tiny');
+        });
+
+        it('lets a person overrule what a check found', () =>
+        {
+            repository.routeHost('example.com', 'name', false);
+            repository.routeHost('example.com', 'tiny', true);
+
+            expect(repository.listRouted()[0])
+                .toEqual({ host: 'example.com', way: 'tiny', byHand: true });
+        });
+
+        it('puts the ones set by hand first', () =>
+        {
+            repository.routeHost('found.example', 'name', false);
+            repository.routeHost('typed.example', 'tiny', true);
+
+            expect(repository.listRouted().map((row) => row.host))
+                .toEqual(['typed.example', 'found.example']);
+        });
+
+        it('says nothing was there when forgetting a host it never had', () =>
+        {
+            expect(repository.forgetRoute('nobody.example')).toBe(false);
+        });
+
+        it('forgets a host it was given', () =>
+        {
+            repository.routeHost('example.com', 'name', true);
+
+            expect(repository.forgetRoute('example.com')).toBe(true);
+            expect(repository.listRouted()).toEqual([]);
+        });
+    });
+
+    describe('what the driver found', () =>
+    {
+        const FOUND = { host: 'discord.com', fooling: 'ttl', ttl: 6, repeats: 6 };
+
+        it('keeps what got a site through', () =>
+        {
+            repository.rememberDriver(FOUND);
+
+            expect(repository.listDriverFound()).toEqual([FOUND]);
+        });
+
+        // What worked last week may not work today, and the fresher answer is the one
+        // that was actually tried.
+        it('lets a later search overrule an earlier one', () =>
+        {
+            repository.rememberDriver(FOUND);
+            repository.rememberDriver({ ...FOUND, fooling: 'badseq', ttl: 4 });
+
+            expect(repository.listDriverFound())
+                .toEqual([{ ...FOUND, fooling: 'badseq', ttl: 4 }]);
+        });
+
+        it('keeps each site apart from the others', () =>
+        {
+            repository.rememberDriver(FOUND);
+            repository.rememberDriver({ ...FOUND, host: 'rutracker.org' });
+
+            expect(repository.listDriverFound()).toHaveLength(2);
+        });
+
+        it('forgets a site it was given', () =>
+        {
+            repository.rememberDriver(FOUND);
+
+            expect(repository.forgetDriver('discord.com')).toBe(true);
+            expect(repository.listDriverFound()).toEqual([]);
+        });
+
+        it('says nothing was there when forgetting a site it never had', () =>
+        {
+            expect(repository.forgetDriver('nobody.example')).toBe(false);
+        });
+    });
+
+    describe('what it lets go of', () =>
+    {
+        // A promise about not keeping names of sites was true only of the tables
+        // somebody had thought about, and these two were not among them.
+        it('lets go of a name a check wrote down long enough ago', () =>
+        {
+            repository.rememberDriver(
+                { host: 'old.example', fooling: 'ttl', ttl: 6, repeats: 6 });
+
+            db.exec("UPDATE driver_found SET found_at = datetime('now', '-200 days')");
+
+            expect(repository.prune().names).toBe(1);
+            expect(repository.listDriverFound()).toEqual([]);
+        });
+
+        // Somebody chose it. A tool that forgets what it was told is worse than one
+        // that remembers too long.
+        it('keeps a site somebody put in by hand, however old', () =>
+        {
+            repository.routeHost('mine.example', 'name', true);
+
+            db.exec("UPDATE routed_hosts SET noted_at = datetime('now', '-900 days')");
+
+            repository.prune();
+
+            expect(repository.listRouted().map((one) => one.host))
+                .toContain('mine.example');
+        });
+
+        it('lets go of one the check found by itself', () =>
+        {
+            repository.routeHost('found.example', 'name', false);
+
+            db.exec("UPDATE routed_hosts SET noted_at = datetime('now', '-900 days')");
+
+            repository.prune();
+
+            expect(repository.listRouted()).toEqual([]);
+        });
     });
 });

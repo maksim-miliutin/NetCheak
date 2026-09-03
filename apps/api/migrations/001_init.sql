@@ -44,5 +44,5 @@ CREATE INDEX IF NOT EXISTS samples_run_idx ON samples (target_run_id);
 INSERT OR IGNORE INTO targets (name, host, port) VALUES
     ('Cloudflare DNS', '1.1.1.1', 443),
     ('Google DNS', '8.8.8.8', 443),
-    ('Yandex', 'ya.ru', 443),
+    ('Wikipedia', 'wikipedia.org', 443),
     ('GitHub', 'github.com', 443);
