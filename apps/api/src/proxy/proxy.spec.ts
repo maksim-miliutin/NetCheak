@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer, connect, type Server } from 'node:net';
 import { buildHello } from '../tls/hello.ts';
-import { readConnect, startProxy } from './proxy.ts';
+import { readConnect, startProxy, type Told } from './proxy.ts';
 import { findName, splitPoint } from './split.ts';
 
 const running: Server[] = [];
@@ -147,6 +147,60 @@ describe('the proxy', () =>
             socket.on('error', () => resolve());
         });
     }
+
+    // Without a line for each connection the page can only say that the proxy is on,
+    // and not that anything is going through it.
+    it('tells what went through, and in how many pieces', async () =>
+    {
+        const told: Told[] = [];
+        const upstream = await listening();
+        const proxy = startProxy({ port: 0, gapMs: 0, overHttps: false,
+            watch: (one) => told.push(one) });
+
+        running.push(proxy);
+
+        await new Promise((done) => proxy.once('listening', done));
+
+        const port = (proxy.address() as { port: number }).port;
+
+        await through(port, '127.0.0.1', upstream.port, buildHello('example.com'));
+
+        expect(told).toHaveLength(1);
+        expect(told[0]?.host).toBe('127.0.0.1');
+        expect(told[0]?.pieces).toBeGreaterThan(1);
+        expect(told[0]?.bytes).toBeGreaterThan(0);
+        expect(told[0]?.error).toBeNull();
+    });
+
+    // A site that would not answer is the interesting line, not the missing one. The
+    // helper above waits for the proxy to answer, and on a refusal it never does.
+    it('tells when the far end could not be reached', async () =>
+    {
+        const told: Told[] = [];
+        const proxy = startProxy({ port: 0, gapMs: 0, overHttps: false,
+            watch: (one) => told.push(one) });
+
+        running.push(proxy);
+
+        await new Promise((done) => proxy.once('listening', done));
+
+        const port = (proxy.address() as { port: number }).port;
+
+        await new Promise<void>((done) =>
+        {
+            const socket = connect(port, '127.0.0.1', () =>
+            {
+                socket.write('CONNECT 127.0.0.1:1 HTTP/1.1\r\n\r\n');
+            });
+
+            socket.on('error', () => undefined);
+            setTimeout(() => { socket.destroy(); done(); }, 400);
+        });
+
+        expect(told).toHaveLength(1);
+        expect(told[0]?.error).not.toBeNull();
+        expect(told[0]?.port).toBe(1);
+    });
 
     // The whole point: what leaves as one write must arrive as two.
     it('sends the hello in two pieces', async () =>

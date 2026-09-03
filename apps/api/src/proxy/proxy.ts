@@ -1,7 +1,23 @@
 import { createServer, connect, type Socket, type Server } from 'node:net';
 import { writeAs, type Way } from './ways.ts';
+import { mayRelay } from '../access/allowed.ts';
 import { resolveOverHttps } from '../dns/doh.ts';
 import { isAddress } from '../targets/address.ts';
+
+/**
+ * What went through, told as it happens. Held in memory and never written down: a
+ * list of the sites somebody opened is the one thing this tool promises not to keep.
+ */
+export interface Told
+{
+    host: string;
+    port: number;
+    way: Way;
+    /** How many pieces the opening record went out in. */
+    pieces: number;
+    bytes: number;
+    error: string | null;
+}
 
 export interface ProxyOptions
 {
@@ -18,6 +34,9 @@ export interface ProxyOptions
      * asked for by name.
      */
     onNetwork?: boolean;
+
+    /** Told what passed through, so the page can show it going. */
+    watch?: (told: Told) => void;
 }
 
 const DEFAULT_PORT = 3128;
@@ -36,8 +55,20 @@ export function startProxy(options: ProxyOptions = {}): Server
     const way = options.way ?? 'name';
     const overHttps = options.overHttps ?? true;
 
+    const onNetwork = options.onNetwork === true;
+
     const server = createServer((client) =>
     {
+        // Asked per connection rather than answered once by choosing an address to
+        // listen on. Every interface on a machine with a public address is an open
+        // proxy facing the internet, which is not what a phone on the sofa needs.
+        if (!mayRelay(client.remoteAddress, onNetwork))
+        {
+            client.destroy();
+
+            return;
+        }
+
         client.once('data', (chunk) =>
         {
             const asked = readConnect(chunk.toString('latin1'));
@@ -49,14 +80,14 @@ export function startProxy(options: ProxyOptions = {}): Server
                 return;
             }
 
-            void open(client, asked.host, asked.port, gapMs, way, overHttps);
+            void open(client, asked.host, asked.port, gapMs, way, overHttps,
+                options.watch);
         });
 
         client.on('error', () => client.destroy());
     });
 
-    server.listen(options.port ?? DEFAULT_PORT,
-        options.onNetwork === true ? '0.0.0.0' : '127.0.0.1');
+    server.listen(options.port ?? DEFAULT_PORT, onNetwork ? '0.0.0.0' : '127.0.0.1');
 
     return server;
 }
@@ -84,6 +115,7 @@ async function open(
     gapMs: number,
     way: Way,
     overHttps: boolean,
+    watch?: (told: Told) => void,
 ): Promise<void>
 {
     // Splitting the write gets past a filter reading the name. It does nothing about
@@ -113,6 +145,9 @@ async function open(
             // relayed as it comes.
             const { pieces } = writeAs(way, chunk);
 
+            watch?.({ host, port, way, pieces: pieces.length, bytes: chunk.length,
+                error: null });
+
             pieces.forEach((piece, index) =>
             {
                 if (index === 0)
@@ -135,7 +170,11 @@ async function open(
         upstream.destroy();
     };
 
-    upstream.on('error', drop);
+    upstream.on('error', (err: Error) =>
+    {
+        watch?.({ host, port, way, pieces: 0, bytes: 0, error: err.message });
+        drop();
+    });
     client.on('error', drop);
     client.on('close', () => upstream.destroy());
 }
