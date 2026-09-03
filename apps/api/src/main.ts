@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Database } from './db/database.ts';
 import { ChecksRepository } from './db/checks.repository.ts';
-import { placeDatabase } from './db/place.ts';
+import { placeDatabase, whereDatabase } from './db/place.ts';
 import { buildServer } from './http/server.ts';
 import { choosePort } from './http/port.ts';
 
@@ -13,13 +14,20 @@ const DEFAULT_PORT = 3001;
 const here = dirname(fileURLToPath(import.meta.url));
 
 // Kept beside the code rather than read from a manifest the binary does not carry.
-const VERSION = '1.0.0';
+/**
+ * One number, read from where npm keeps it. It was written out by hand here and in
+ * the packaged entry point, and disagreed with the file both were copied from: a
+ * release said one thing and the running program another.
+ */
+const VERSION = JSON.parse(
+    readFileSync(join(import.meta.dirname, '..', '..', '..', 'package.json'), 'utf8'),
+).version as string;
 
 async function main(): Promise<void>
 {
     // A path, not a connection string: the whole point of SQLite here is that the
     // tool carries its own storage and starts with nothing installed.
-    const file = process.env.NETCHECK_DB ?? join(process.cwd(), 'netcheck.db');
+    const file = whereDatabase(join(process.cwd(), 'netcheck.db'));
 
     const placed = placeDatabase(file);
 

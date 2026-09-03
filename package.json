@@ -1,6 +1,6 @@
 {
     "name": "netcheck",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "private": true,
     "type": "module",
     "workspaces": [
@@ -16,6 +16,8 @@
         "divert": "node tools/divert-run.mjs"
     },
     "devDependencies": {
+        "esbuild": "^0.28.2",
+        "postject": "^1.0.0-alpha.6",
         "vitest": "^4.1.11"
     }
 }

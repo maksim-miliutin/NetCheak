@@ -4,12 +4,12 @@
 
 import { Database } from './db/database.ts';
 import { ChecksRepository } from './db/checks.repository.ts';
-import { placeDatabase } from './db/place.ts';
+import { placeDatabase, whereDatabase } from './db/place.ts';
 import { buildServer } from './http/server.ts';
 import { choosePort } from './http/port.ts';
 
 // @ts-expect-error the alias is provided by the build script
-import { migrations, web } from '#assets';
+import { built, migrations, version, web } from '#assets';
 
 interface Asset
 {
@@ -30,8 +30,6 @@ const TYPES: Record<string, string> =
 };
 
 // Kept beside the code rather than read from a manifest the binary does not carry.
-const VERSION = '1.0.0';
-
 async function main(): Promise<void>
 {
     // Somewhere like a mounted image or Program Files cannot be written to, and a
@@ -59,7 +57,7 @@ async function main(): Promise<void>
     {
         db,
         repository: new ChecksRepository(db),
-        version: VERSION,
+        version,
         port,
         logLevel: 'warn',
         allowedOrigins: [`http://127.0.0.1:${port}`, `http://localhost:${port}`],
@@ -86,7 +84,8 @@ async function main(): Promise<void>
 
     await app.listen({ port, host: '127.0.0.1' });
 
-    console.log(`netcheck is running. Open http://127.0.0.1:${port} in a browser.`);
+    console.log(`netcheck is running, built ${built}. `
+        + `Open http://127.0.0.1:${port} in a browser.`);
     console.log('Close this window to stop it.');
 }
 
@@ -95,7 +94,7 @@ function databaseFile(): string
 {
     const beside = process.execPath.replace(/[^\\/]+$/, '');
 
-    return `${beside}netcheck.db`;
+    return whereDatabase(`${beside}netcheck.db`);
 }
 
 main().catch((err) =>
