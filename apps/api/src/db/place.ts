@@ -1,4 +1,5 @@
-import { accessSync, constants, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, writeFileSync, unlinkSync }
+    from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -10,6 +11,34 @@ export interface Placed
 }
 
 const FOLDER = '.netcheck';
+
+/**
+ * One database, wherever the program was started from. Two entry points each picked
+ * their own — beside the binary and inside the working folder — and a site added in
+ * one was gone in the other, which reads as nothing being saved at all.
+ *
+ * A database already sitting in the old place keeps being used: somebody's history
+ * is worth more than tidiness, and moving it silently is worse than leaving it.
+ */
+export function whereDatabase(beside: string): string
+{
+    const asked = process.env.NETCHECK_DB;
+
+    if (asked !== undefined && asked !== '')
+    {
+        return asked;
+    }
+
+    for (const older of [beside, join(process.cwd(), 'netcheck.db')])
+    {
+        if (existsSync(older))
+        {
+            return older;
+        }
+    }
+
+    return join(homedir(), FOLDER, 'netcheck.db');
+}
 
 /**
  * Somebody who runs the binary out of a folder they cannot write to — a read-only

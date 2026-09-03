@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { chmodSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync }
+    from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isWritable, placeDatabase } from './place.ts';
+import { isWritable, placeDatabase, whereDatabase } from './place.ts';
 
 const made: string[] = [];
 
@@ -81,5 +82,51 @@ describe('placeDatabase', () =>
     it('names the place it could not use, so the reason can be said', () =>
     {
         expect(placeDatabase('/proc/self/netcheck.db').refused).toContain('netcheck.db');
+    });
+});
+
+describe('whereDatabase', () =>
+{
+    const был = process.env.NETCHECK_DB;
+
+    afterEach(() =>
+    {
+        if (был === undefined)
+        {
+            delete process.env.NETCHECK_DB;
+        }
+        else
+        {
+            process.env.NETCHECK_DB = был;
+        }
+    });
+
+    it('takes the place it was told to take, over everything else', () =>
+    {
+        process.env.NETCHECK_DB = join(tmpdir(), 'told-to.db');
+
+        expect(whereDatabase('/nowhere/netcheck.db')).toBe(join(tmpdir(), 'told-to.db'));
+    });
+
+    // Two entry points each picked their own place, and a site added in one was gone
+    // in the other. Which reads as nothing being saved at all.
+    it('lands in the same place wherever the program was started from', () =>
+    {
+        delete process.env.NETCHECK_DB;
+
+        expect(whereDatabase('/one/netcheck.db')).toBe(whereDatabase('/another/netcheck.db'));
+    });
+
+    it('keeps using a database that is already sitting in the old place', () =>
+    {
+        delete process.env.NETCHECK_DB;
+
+        const older = join(tmpdir(), `netcheck-older-${process.pid}.db`);
+
+        writeFileSync(older, '');
+
+        expect(whereDatabase(older)).toBe(older);
+
+        rmSync(older, { force: true });
     });
 });
