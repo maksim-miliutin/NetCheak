@@ -30,6 +30,7 @@ export function outbound(
     updates = false,
     proxyPort: number | null = null,
     overHttps = false,
+    cutting = false,
 ): Outbound
 {
     const errands: Errand[] = targets
@@ -73,6 +74,19 @@ export function outbound(
             where: `127.0.0.1:${proxyPort}`,
             why: 'the splitting proxy is running; traffic pointed at it is relayed '
                 + 'onward without being read',
+            onDemand: true,
+        });
+    }
+
+    // The driver puts copies of packets on the wire, to the same places the machine
+    // was already sending them. Nowhere new, but more than was asked for, and the
+    // promise here is about every packet rather than about every destination.
+    if (cutting)
+    {
+        errands.push({
+            where: 'wherever this machine was already going',
+            why: 'the driver is running; copies of your own hellos are sent ahead of '
+                + 'them, and nothing else is added or read',
             onDemand: true,
         });
     }

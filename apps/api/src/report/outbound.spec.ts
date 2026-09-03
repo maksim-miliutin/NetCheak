@@ -105,4 +105,20 @@ describe('outbound', () =>
         expect(said).toContain('location');
         expect(said).toContain('telemetry');
     });
+
+    // The driver puts more packets on the wire than were asked for, and a list that
+    // says everything this tool sends has to say that too.
+    it('says the driver is putting copies on the wire while it runs', () =>
+    {
+        const said = outbound([], false, null, false, true);
+
+        expect(said.errands.some((one) => one.why.includes('copies'))).toBe(true);
+    });
+
+    it('says nothing about the driver while it is not running', () =>
+    {
+        const said = outbound([], false, null, false, false);
+
+        expect(said.errands.some((one) => one.why.includes('copies'))).toBe(false);
+    });
 });
