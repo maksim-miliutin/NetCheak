@@ -7,6 +7,12 @@
             "ES2023"
         ],
         "strict": true,
+
+        // Node runs this source as it is, stripping types and nothing more. Syntax
+        // that has to be compiled rather than stripped — a parameter property, an
+        // enum, a namespace — passes the compiler and fails at startup, which is the
+        // worst place for a difference to live. This makes the compiler refuse it.
+        "erasableSyntaxOnly": true,
         "noUnusedLocals": true,
         "skipLibCheck": true,
         "noEmit": true,
