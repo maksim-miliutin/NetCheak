@@ -66,7 +66,10 @@ export function blame(named: Handshake, unnamed: Handshake): Culprit
         return 'name-read';
     }
 
-    if (named === 'reset' && unnamed === 'reset')
+    // Both dying the same way says the name made no difference. Silence counts as a
+    // way of dying: a filter that drops rather than resets is still a filter, and a
+    // live connection that answers nothing twice has already said what it is.
+    if (named === unnamed && (named === 'reset' || named === 'timeout'))
     {
         return 'address-blocked';
     }

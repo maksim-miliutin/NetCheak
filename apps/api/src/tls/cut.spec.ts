@@ -20,6 +20,7 @@ describe('blame', () =>
     it('blames the address when both attempts die the same way', () =>
     {
         expect(blame('reset', 'reset')).toBe('address-blocked');
+        expect(blame('timeout', 'timeout')).toBe('address-blocked');
     });
 
     it.each([
