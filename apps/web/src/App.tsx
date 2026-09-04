@@ -2,15 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import
 {
     forgetTarget,
+    getDivert,
+    getHealth,
     getHistory,
     getReport,
     getStatus,
     findCut,
-    toggleProxy,
     tryEvasion,
     getNeighbours,
-    checkUpdate,
-    getOutbound,
     getProxy,
     getTunnels,
     checkSixth,
@@ -22,23 +21,31 @@ import
     traceTo,
     watchTarget,
 } from './api';
-import { EVERY_MS, isDue, nextInSeconds } from './watch';
-import { answerFor, useLookup } from './lookup';
-import { bookmarklet } from './page';
-import { Chain, Dns, Headline, Lane, Speed, Tls } from './parts';
+import { EVERY_MS, isDue, nextInSeconds } from './ask/watch';
+import { answerFor, useLookup } from './ask/lookup';
+import { bookmarklet } from './read/page';
+import { Chain } from './parts/Chain';
+import { Headline } from './parts/Headline';
+import { Dns, Speed, Tls } from './parts/Checks';
+import { Lane } from './parts/Lane';
+import { Proxy } from './parts/Proxy';
+import { Sites } from './parts/Sites';
+import { Driver } from './parts/Driver';
+import { Waiting } from './parts/Waiting';
+import { useProxy } from './hold/proxy';
+import { useDriver } from './hold/driver';
+import { useAsked } from './hold/asked';
 import { pickTongue, WORDS } from './words';
-import { showStamp } from './when';
+import { showStamp } from './read/when';
 import type
 {
     DnsCheck,
+    Health,
     History,
     Path,
     Cut,
     Evasion,
     Household,
-    Newer,
-    Outbound,
-    ProxyState,
     SixthCheck,
     Trace,
     Tunnels,
@@ -71,12 +78,48 @@ export function App()
     const cuts = useLookup<Cut>(findCut, setError);
     const evasions = useLookup<Evasion>(tryEvasion, setError);
     const [house, setHouse] = useState<Household | null>(null);
-    const [leaves, setLeaves] = useState<Outbound | null>(null);
-    const [newer, setNewer] = useState<Newer | null>(null);
-    const [proxy, setProxy] = useState<ProxyState | null>(null);
-    const [forPhone, setForPhone] = useState(false);
+    const [health, setHealth] = useState<Health | null>(null);
+
+    // Two groups of what the page holds, each with its own doing beside it.
+    // Thirty-one states in one component is a page nobody can read the top of.
+    const proxying = useProxy(setError);
+    const driving = useDriver(setError);
+    const asked = useAsked(setError);
     const [copied, setCopied] = useState(false);
     const [tongue, setTongue] = useState(() => pickTongue(navigator.languages ?? ['en']));
+
+    /**
+     * The document said English while the page spoke Russian, and a browser that
+     * believes the first translates the second: the headings came out as a car driver
+     * and a customs office. A screen reader has the same trouble more quietly, reading
+     * Russian aloud in an English voice.
+     */
+    useEffect(() =>
+    {
+        document.documentElement.lang = tongue;
+    }, [tongue]);
+
+    /**
+     * Both keep a log as they go, and the page asked once at startup: the log stayed
+     * empty and the state stayed at running even after the driver had given up. While
+     * either runs the page keeps asking; while neither does, there is nothing to ask.
+     */
+    const anyRunning = proxying.state?.running === true;
+
+    useEffect(() =>
+    {
+        if (!anyRunning)
+        {
+            return undefined;
+        }
+
+        const again = setInterval(() =>
+        {
+            getProxy().then(proxying.put).catch(() => undefined);
+        }, 1200);
+
+        return () => clearInterval(again);
+    }, [anyRunning]);
 
     const say = WORDS[tongue];
     const [loaded, setLoaded] = useState(false);
@@ -85,14 +128,17 @@ export function App()
     {
         try
         {
-            const [next, past, through, others, relay] = await Promise.all(
-                [getStatus(), getHistory(), getTunnels(), getNeighbours(), getProxy()]);
+            const [next, past, through, others, relay, cut, alive] =
+                await Promise.all([getStatus(), getHistory(), getTunnels(),
+                    getNeighbours(), getProxy(), getDivert(), getHealth()]);
 
             setStatus(next);
             setHistory(past.targets);
             setTunnels(through);
             setHouse(others);
-            setProxy(relay);
+            proxying.put(relay);
+            driving.put(cut);
+            setHealth(alive);
             setError(null);
         }
         catch (err)
@@ -189,7 +235,7 @@ export function App()
 
     if (!loaded)
     {
-        return <p>{say.loading}</p>;
+        return <Waiting say={say} />;
     }
 
 
@@ -287,43 +333,7 @@ export function App()
 
     // Asked for, never habitual: a tool that promises no telemetry cannot phone home
     // on its own, however good the reason.
-    const lookForUpdate = async (): Promise<void> =>
-    {
-        try
-        {
-            setNewer(await checkUpdate());
-            setLeaves(null);
-        }
-        catch (err)
-        {
-            setError((err as Error).message);
-        }
-    };
 
-    const switchProxy = async (preset?: string): Promise<void> =>
-    {
-        try
-        {
-            setProxy(await toggleProxy(preset, forPhone));
-            setLeaves(null);
-        }
-        catch (err)
-        {
-            setError((err as Error).message);
-        }
-    };
-
-    const showLeaves = async (): Promise<void> =>
-    {
-        try
-        {
-            setLeaves(leaves === null ? await getOutbound() : null);
-        }
-        catch (err)
-        {
-            setError((err as Error).message);
-        }
-    };
 
     const busy = measuring || step !== null;
 
@@ -337,6 +347,12 @@ export function App()
                         <b>
                             <img className="tiny" src="/roflanich.png" alt="" />
                             netcheck
+
+                            {/* Which one is running. Without it, a fix and the version
+                                before it look exactly alike from here. */}
+                            {health !== null && (
+                                <span className="version">{health.version}</span>
+                            )}
                         </b>
 
                         <span>
@@ -367,6 +383,7 @@ export function App()
                             has={{ Names: dns !== null, Connections: tls !== null }}
                             opened={opened}
                             onOpen={(link) => setOpened(opened === link ? null : link)}
+                            walking={step !== null}
                         />
                     )}
 
@@ -407,8 +424,6 @@ export function App()
                 </label>
             </div>
 
-
-
             {step !== null && <p className="progress small">{step}…</p>}
 
             {/* The transfer runs for about ten seconds. Without a word about it the
@@ -440,6 +455,23 @@ export function App()
                             <li key={one.address}>
                                 <span>{one.address}</span>
                                 <span className="host">{one.hardware}</span>
+
+                                {/* The maker is read out of the address; what kind of
+                                    thing it is follows from the maker and is a guess.
+                                    The gateway is the one that is not. */}
+                                {one.maker.vendor !== null && (
+                                    <span className="made">
+                                        {one.maker.vendor}
+                                        {say.kinds[one.maker.kind] === ''
+                                            ? ''
+                                            : `, ${say.kinds[one.maker.kind]}`}
+                                    </span>
+                                )}
+
+                                {one.maker.randomised && (
+                                    <span className="host">{say.madeUpAddress}</span>
+                                )}
+
                                 {one.gateway && <span className="host">{say.theRouter}</span>}
                             </li>
                         ))}
@@ -456,25 +488,59 @@ export function App()
             {status?.speed != null && <Speed speed={status.speed} say={say} />}
 
             <ul className="lanes">
-                    {(status?.targets ?? []).map((target) => (
-                        <Lane
-                            key={target.targetId}
-                            target={target}
-                            past={history.find((h) => h.targetId === target.targetId) ?? null}
-                            say={say}
-                            trace={answerFor(traces.found, target.targetId)}
-                            onTrace={traces.ask}
-                            path={answerFor(paths.found, target.targetId)}
-                            onMeasure={paths.ask}
-                            cut={answerFor(cuts.found, target.targetId)}
-                            onCut={cuts.ask}
-                            evasion={answerFor(evasions.found, target.targetId)}
-                            onEvade={evasions.ask}
-                            onUseWay={switchProxy}
-                            forget={forget}
-                        />
-                    ))}
+                {(status?.targets ?? []).map((target) => (
+                    <Lane
+                        key={target.targetId}
+                        target={target}
+                        past={history.find((h) => h.targetId === target.targetId) ?? null}
+                        say={say}
+                        trace={answerFor(traces.found, target.targetId)}
+                        onTrace={traces.ask}
+                        path={answerFor(paths.found, target.targetId)}
+                        onMeasure={paths.ask}
+                        cut={answerFor(cuts.found, target.targetId)}
+                        onCut={cuts.ask}
+                        evasion={answerFor(evasions.found, target.targetId)}
+                        onEvade={evasions.ask}
+                        onUseWay={proxying.toggle}
+                        forget={forget}
+                    />
+                ))}
             </ul>
+
+            <Proxy
+                proxy={proxying.state}
+                say={say}
+                chosen={proxying.chosen}
+                onChoose={proxying.pick}
+                busy={proxying.switching}
+                onSwitch={() => void proxying.toggle()}
+                forPhone={proxying.forPhone}
+                onForPhone={proxying.servePhone}
+            />
+
+            <Driver
+                divert={driving.state}
+                say={say}
+                busy={proxying.switching}
+                typed={driving.typed}
+                onType={driving.type}
+                searching={driving.searching}
+                found={driving.found}
+                onFind={() => void driving.search()}
+            />
+
+            <Sites
+                routed={proxying.state?.routed ?? []}
+                ways={proxying.state?.ways ?? []}
+                say={say}
+                typed={proxying.typedSite}
+                onType={proxying.typeSite}
+                chosen={proxying.siteWay}
+                onChoose={proxying.pickWay}
+                onAdd={() => void proxying.add()}
+                onDrop={(host) => void proxying.drop(host)}
+            />
 
             {/* Built from the values the code uses, so it cannot drift from what the
                 tool actually does. */}
@@ -484,112 +550,38 @@ export function App()
                 <summary className="small">{say.tools}</summary>
 
                 <p className="small">
-                    <button type="button" className="ghost" onClick={showLeaves}>
+                    <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => void asked.showLeaves()}
+                    >
                         {say.whatLeaves}
-                    </button>
-
-                    <button type="button" className="ghost spaced" onClick={lookForUpdate}>
-                        {say.lookForUpdate}
                     </button>
 
                     <button
                         type="button"
                         className="ghost spaced"
-                        onClick={() => void switchProxy()}
+                        onClick={() => void asked.lookForUpdate()}
                     >
-                        {proxy?.running === true ? say.stopProxy : say.startProxy}
+                        {say.lookForUpdate}
                     </button>
                 </p>
 
-                {/* Everybody on that network can route through it once it listens
-                    there, so it is asked for rather than assumed. */}
-                {proxy?.running !== true && (
-                    <label className="repeat small">
-                        <input
-                            type="checkbox"
-                            checked={forPhone}
-                            onChange={(event) => setForPhone(event.target.checked)}
-                        />
-                        {say.forPhone}
-                    </label>
-                )}
+                {asked.newer !== null && (
+                <p className={asked.newer.behind ? 'small blamed' : 'small'}>
+                    {asked.newer.error !== null && say.couldNotAsk}
+                    {asked.newer.error === null && asked.newer.behind
+                        && say.newerExists(asked.newer.latest ?? '')}
 
-                {proxy?.running === true && proxy.onNetwork && proxy.lan !== null && (
-                    <div className="small">
-                        <p>{say.phoneHow(proxy.lan, proxy.relays[0]?.port ?? 3128)}</p>
-                        <p className="blamed">{say.phoneWarn}</p>
-                    </div>
-                )}
-
-                {/* Zapret ships thirteen files called ALT and leaves a person to try
-                    them in turn. These say what they do, cheapest first. */}
-                {proxy?.running !== true && (proxy?.presets.length ?? 0) > 0 && (
-                    <div className="presets small">
-                        <p><b>{say.presets}</b></p>
-
-                        <ul>
-                            {proxy?.presets.map((preset) => (
-                                <li key={preset.id}>
-                                    <div>
-                                        <b>{say.presetNames[preset.id] ?? preset.id}</b>
-                                        <span>{say.presetSays[preset.id] ?? ''}</span>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => void switchProxy(preset.id)}
-                                    >
-                                        {say.usePreset}
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {proxy?.running === true && (
-                    <div className="small relays">
-                        <p>
-                            {proxy.preset === null
-                                ? say.proxyRunning
-                                : say.presetRunning(say.presetNames[proxy.preset]
-                                    ?? proxy.preset)}
-                        </p>
-
-                        {/* The setting the system keeps is read by most of what
-                            speaks HTTP here, and it belongs to this user, so nothing
-                            asks for administrator rights. */}
-                        <p>{proxy.system ? say.systemSet : say.systemFailed}</p>
-                        <p>{say.systemLimit}</p>
-
-                        <ul className="ports">
-                            {proxy.relays.map((relay) => (
-                                <li key={relay.port}>
-                                    <code className="carry">127.0.0.1:{relay.port}</code>
-                                    <span>{say.wayNames[relay.way] ?? relay.way}</span>
-                                </li>
-                            ))}
-                        </ul>
-
-                        <p>{say.proxyBlind}</p>
-
-                        {proxy.overHttps && <p>{say.proxyOverHttps}</p>}
-
-                    </div>
-                )}
-
-                {newer !== null && (
-                <p className={newer.behind ? 'small blamed' : 'small'}>
-                    {newer.error !== null && say.couldNotAsk}
-                    {newer.error === null && newer.behind && say.newerExists(newer.latest ?? '')}
-                    {newer.error === null && !newer.behind && say.upToDate(newer.current)}
+                    {asked.newer.error === null && !asked.newer.behind
+                        && say.upToDate(asked.newer.current)}
                 </p>
             )}
 
-                {leaves !== null && (
+                {asked.leaves !== null && (
                 <div className="leaves small">
                     <ul>
-                        {leaves.errands.map((errand) => (
+                        {asked.leaves.errands.map((errand) => (
                             <li key={errand.where}>
                                 <b>{errand.where}</b> — {errand.why}
                                 {errand.onDemand && <span className="host">
@@ -601,7 +593,7 @@ export function App()
                     <p><b>{say.neverDoes}</b></p>
 
                     <ul>
-                        {leaves.never.map((one) => <li key={one}>{one}</li>)}
+                        {asked.leaves.never.map((one) => <li key={one}>{one}</li>)}
                     </ul>
                 </div>
             )}

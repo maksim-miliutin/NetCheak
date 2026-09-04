@@ -1,4 +1,4 @@
-import type { Run } from './types';
+import type { Run } from '../types';
 
 export interface Plot
 {

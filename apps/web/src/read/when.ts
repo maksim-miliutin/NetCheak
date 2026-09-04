@@ -1,4 +1,4 @@
-import type { Tongue } from './words';
+import type { Tongue } from '../words';
 
 /**
  * The database writes datetime('now'), which is Greenwich. Read as it stands, a check

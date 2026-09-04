@@ -5,7 +5,9 @@
 {
     --ink: #16212c;
     --ink-soft: #55636f;
-    --ink-faint: #8a949e;
+    /* Faint, not unreadable: #8a949e sat at 3.08:1 on paper, under the 4.5:1 that
+       ordinary text needs. This is the palest grey that still passes. */
+    --ink-faint: #6b7681;
     --paper: #ffffff;
     --rule: #e4e8ec;
 
@@ -619,8 +621,6 @@ input:focus-visible
         left: -140px;
     }
 
-
-
     .sheet
     {
         padding: 0 18px 56px;
@@ -1003,14 +1003,17 @@ input:focus-visible
 
 .tools
 {
-    padding: 16px 0 4px;
-    margin-top: 28px;
+    padding: 26px 0 4px;
+    margin-top: 34px;
     border-top: 1px solid var(--rule);
 }
 
 .tools summary
 {
+    color: var(--ink);
+    font-size: 15px;
     font-weight: 600;
+    letter-spacing: -0.01em;
     cursor: pointer;
 }
 
@@ -1020,8 +1023,13 @@ input:focus-visible
 }
 
 /* One line per running proxy: where to reach it, then which way it writes. */
+/* A row that wraps, not a column eight deep. Eight ways of writing a hello made
+   eight rows of one address each, and everything under them went off the screen. */
 .ports
 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
     padding: 0;
     margin: 10px 0 16px;
     list-style: none;
@@ -1091,23 +1099,33 @@ input:focus-visible
 .ports li
 {
     display: flex;
-    gap: 16px;
-    align-items: center;
-    padding: 5px 0;
+    gap: 8px;
+    align-items: baseline;
+    padding: 4px 10px;
+    background: var(--tint);
+    border-radius: 7px;
+    font-size: 12px;
 }
 
 .ports li span
 {
     color: var(--ink-soft);
-    font-size: 13px;
+    font-size: 12px;
 }
 
+/* The address is the part somebody copies; the way is a label beside it. */
+.ports li code
+{
+    font-size: 12px;
+}
+
+/* The one filled plate on a page that separates everything else with a rule and room.
+   It read as pasted in from another application, which is what it was. */
 .leaves
 {
-    padding: 14px 16px;
-    margin-top: 10px;
-    background: #f6f8f9;
-    border-radius: 8px;
+    padding: 14px 0 4px;
+    margin-top: 14px;
+    border-top: 1px solid var(--rule);
 }
 
 .leaves ul
@@ -1181,4 +1199,485 @@ input:focus-visible
     {
         margin-left: 0;
     }
+}
+
+
+
+
+
+
+
+/* The first answers take a moment to fetch, and a bare word on an empty page reads as
+   a page that failed rather than one that is working. The face is the page's own and
+   the only thing on it that ever moves, so it is what moves here. */
+.waiting
+{
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    color: var(--ink-soft);
+}
+
+.waiting img
+{
+    width: 96px;
+    height: 96px;
+    filter: drop-shadow(0 6px 14px rgba(22, 33, 44, 0.16));
+}
+
+/* Not a constant sweep: it turns hard, catches, and comes round. A wheel somebody is
+   turning by hand, rather than a part of a machine. */
+@keyframes turning
+{
+    0% { transform: rotate(0deg); }
+    46% { transform: rotate(203deg); }
+    56% { transform: rotate(197deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* The check walks this chain in this order, and while it is walking the link it has
+   reached is the one that is lit. The order is the whole idea of the page. */
+@keyframes reached
+{
+    0%, 64%, 100% { transform: scale(1); opacity: 0.55; }
+    14% { transform: scale(1.7); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    .waiting .turning
+    {
+        animation: turning 1900ms cubic-bezier(0.55, 0, 0.45, 1) infinite;
+    }
+
+    .chain.walking .link::before
+    {
+        animation: reached 1700ms ease-in-out infinite;
+    }
+
+    .chain.walking .link:nth-child(2)::before { animation-delay: 150ms; }
+    .chain.walking .link:nth-child(3)::before { animation-delay: 300ms; }
+    .chain.walking .link:nth-child(4)::before { animation-delay: 450ms; }
+    .chain.walking .link:nth-child(5)::before { animation-delay: 600ms; }
+    .chain.walking .link:nth-child(6)::before { animation-delay: 750ms; }
+}
+
+
+/**
+ * The three below are sections of a sheet, not cards on a dashboard. They were cards
+ * — same white, same border, same corner, stacked three deep — and three of anything
+ * identical in a row reads as filler whoever built it did not think about.
+ *
+ * What separates them here is what separates everything else on this page: a hairline
+ * and room. The heading carries the weight instead of a box around it.
+ */
+.proxy,
+.driver,
+.sites
+{
+    position: relative;
+    padding: 26px 0 0;
+    margin: 34px 0 0;
+    border-top: 1px solid var(--rule);
+}
+
+/* Of the same family as the verdict above: tight, dark, sure of itself. A section
+   heading at fifteen pixels of medium weight belongs to a settings dialog. */
+.proxy h2,
+.driver h2,
+.sites h2
+{
+    margin: 0 0 3px;
+    color: var(--ink);
+    font-size: 21px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+}
+
+.proxy .top,
+.driver .top
+{
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+/* Said once, beside the heading, in the words of the thing rather than as a badge:
+   a pill would be the fourth different way this page marks a state. */
+.proxy .state,
+.driver .state
+{
+    flex: none;
+    color: var(--ink-soft);
+    font-size: 13px;
+}
+
+.proxy .says,
+.driver .says,
+.sites .says
+{
+    max-width: 58ch;
+    margin: 0 0 16px;
+    color: var(--ink-soft);
+}
+
+.proxy .pick,
+.sites .pick,
+.driver .pick
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.driver .pick
+{
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+}
+
+.proxy label,
+.sites label,
+.driver label
+{
+    color: var(--ink-soft);
+    font-size: 14px;
+}
+
+.proxy select,
+.sites select,
+.sites input,
+.driver input
+{
+    padding: 10px 14px;
+    color: var(--ink);
+    font: inherit;
+    font-size: 14px;
+    background: var(--paper);
+    border: 1px solid #cdd4da;
+    border-radius: 8px;
+}
+
+.proxy select
+{
+    flex: 1;
+    min-width: 190px;
+}
+
+.sites input,
+.driver input
+{
+    flex: 1;
+    min-width: 170px;
+}
+
+.proxy select:disabled
+{
+    color: var(--ink-faint);
+    background: var(--tint);
+    border-color: var(--rule);
+}
+
+/* The line runs along the rule that already separates this section, so the section
+   itself is what is working rather than a bar that appeared to say so. */
+.proxy .sweep,
+.driver .sweep
+{
+    position: absolute;
+    top: -1px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: var(--ink);
+}
+
+@media (prefers-reduced-motion: no-preference)
+{
+    .proxy.working .sweep,
+    .driver.working .sweep
+    {
+        width: 100%;
+        transition: width 1.4s linear;
+    }
+}
+
+.sites ul,
+.proxy .lines,
+.driver .lines
+{
+    padding: 0;
+    margin: 16px 0 0;
+    list-style: none;
+}
+
+.sites li
+{
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 9px 0;
+    border-top: 1px solid var(--rule);
+    font-size: 13px;
+}
+
+.sites li span
+{
+    color: var(--ink-soft);
+}
+
+/* A site the check found is not one the person chose, and the difference decides
+   whether a later finding may overwrite it. */
+.sites .found
+{
+    margin-left: auto;
+    color: var(--ink-faint);
+    font-size: 12px;
+}
+
+.sites li .forget
+{
+    margin-left: auto;
+    padding: 0 6px;
+}
+
+.sites li .found + .forget
+{
+    margin-left: 0;
+}
+
+.sites .pick
+{
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+}
+
+/* Short and scrolling: the newest line is the interesting one, and a thousand of them
+   would push the rest of the page off the bottom. */
+.proxy .lines,
+.driver .lines
+{
+    max-height: 208px;
+    padding-top: 14px;
+    overflow-y: auto;
+    border-top: 1px solid var(--rule);
+}
+
+.proxy .lines li,
+.driver .lines li
+{
+    padding: 2px 0;
+    font-size: 12px;
+}
+
+.proxy .lines code,
+.driver .lines code
+{
+    color: var(--ink-soft);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.proxy .lines .quiet,
+.driver .lines .quiet
+{
+    color: var(--ink-faint);
+    font-size: 13px;
+}
+
+
+/**
+ * A finger is not a pointer, and a phone is not a narrow desk. Below this width the
+ * rows that read left to right have to read top to bottom instead: four things on one
+ * line at three hundred and sixty pixels is four things nobody can hit.
+ */
+@media (max-width: 600px)
+{
+    .proxy,
+    .driver,
+    .sites
+    {
+        padding-top: 22px;
+        margin-top: 28px;
+    }
+
+    .proxy h2,
+    .driver h2,
+    .sites h2
+    {
+        font-size: 19px;
+    }
+
+    /* The name and how it is doing sat on one line and squeezed each other; the state
+       is a sentence, not a badge, and it wants its own line. */
+    .proxy .top,
+    .driver .top
+    {
+        display: block;
+        margin-bottom: 10px;
+    }
+
+    .proxy .state,
+    .driver .state
+    {
+        display: block;
+        margin-top: 2px;
+    }
+
+    .proxy .pick,
+    .sites .pick,
+    .driver .pick
+    {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .proxy select,
+    .sites select,
+    .sites input,
+    .driver input
+    {
+        width: 100%;
+        min-width: 0;
+        padding: 13px 14px;
+        font-size: 15px;
+    }
+
+    .proxy .pick button,
+    .sites .pick button,
+    .driver .pick button
+    {
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 15px;
+    }
+
+    /* Four things across a row become a name with its answer under it. */
+    .sites li
+    {
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        padding: 12px 0;
+    }
+
+    .sites li code
+    {
+        flex-basis: 100%;
+        font-size: 14px;
+    }
+
+    .sites .found
+    {
+        margin-left: 0;
+    }
+
+    .sites li .forget,
+    .sites li .found + .forget
+    {
+        margin-left: auto;
+        padding: 4px 0 4px 12px;
+    }
+
+    /* A line of the log is longer than the screen. Wrapping it keeps the newest one
+       readable; a sideways scroll inside a page that already scrolls does not. */
+    .proxy .lines,
+    .driver .lines
+    {
+        max-height: 168px;
+    }
+
+    .ports
+    {
+        gap: 5px 6px;
+    }
+
+    .proxy .lines code,
+    .driver .lines code
+    {
+        overflow-wrap: anywhere;
+    }
+
+    .waiting img
+    {
+        width: 76px;
+        height: 76px;
+    }
+}
+
+
+/* Who made the card, beside the numbers it is read out of. Darker than the address:
+   a list of hex and dotted quads says nothing, and this is the part that does. */
+.house .made
+{
+    color: var(--ink);
+}
+
+
+/* Held in one hand while a phone is held in the other, so the thing to be typed is
+   set large and the rest is a numbered list rather than a paragraph. */
+.phone .big
+{
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 4px 0 12px;
+    font-size: 15px;
+}
+
+.phone ol
+{
+    max-width: 58ch;
+    padding-left: 20px;
+    margin: 0 0 12px;
+}
+
+.phone li
+{
+    margin-bottom: 6px;
+}
+
+
+/* Folded away rather than cut: the page still knows why, and does not say it until
+   somebody asks. Quiet enough to skip, plain enough to find. */
+.why
+{
+    margin: 6px 0 12px;
+}
+
+.why summary
+{
+    display: inline-block;
+    color: var(--ink-soft);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.why summary:hover
+{
+    color: var(--ink);
+}
+
+.why > *:not(summary)
+{
+    margin-top: 10px;
+}
+
+
+/* Beside the name, quiet. A fix and the version before it look exactly alike from
+   the page, and this is the only thing that tells them apart. */
+.masthead .version
+{
+    margin-left: 8px;
+    color: var(--ink-faint);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
 }

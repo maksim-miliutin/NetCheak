@@ -1,4 +1,4 @@
-import type { Cause, Evasion, Path, Trace, Verdict } from './types';
+import type { Cause, Evasion, Path, Trace, Verdict } from '../types';
 
 /**
  * What the page works out before it draws anything: which link of the chain broke,

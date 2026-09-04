@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ceilingOf, plot, riseOf } from './trace';
-import type { Run } from './types';
+import type { Run } from '../types';
 
 const run = (averageMs: number | null): Run =>
     ({ checkedAt: '2026-08-26 20:00', lossPercent: averageMs === null ? 100 : 0, averageMs });

@@ -14,7 +14,7 @@ import
     readTrace,
     stopsAt,
 } from './page';
-import type { Cause, Evasion, Path, Trace, Verdict } from './types';
+import type { Answered, Cause, Evasion, Path, Trace, Verdict } from '../types';
 
 const CAUSES: Cause[] =
 [
@@ -89,7 +89,7 @@ describe('linkState', () =>
 
 describe('readEvasion', () =>
 {
-    const evasion = (whole: string, helps: boolean): Evasion =>
+    const evasion = (whole: Answered, helps: boolean): Evasion =>
         ({ host: 'a.test', whole, split: 'reset', splittingHelps: helps,
             tried: [], works: null, error: null });
 
