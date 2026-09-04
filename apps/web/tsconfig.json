@@ -9,6 +9,7 @@
         "strict": true,
         "noUnusedLocals": true,
         "skipLibCheck": true,
+        "allowImportingTsExtensions": true,
         "noEmit": true,
         "types": ["vite/client"]
     },

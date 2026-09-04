@@ -1,263 +1,56 @@
-export interface SamplePoint
-{
-    reachable: boolean;
-    latencyMs: number | null;
-}
+/**
+ * Everything here is measured by the server, so it is declared there — beside the
+ * function that produces it — and only named again here. Two copies of the same
+ * shape drifted three times: a cause added to a verdict, a field added to the proxy
+ * state, and a host list added after that, each time on one side only.
+ *
+ * These are type-only imports, so nothing from the server reaches the bundle: both
+ * the page build and the binary erase them before anything is resolved.
+ */
 
-export interface StatusRow
-{
-    targetId: number;
-    name: string;
-    host: string;
-    port: number;
-    lossPercent: number | null;
-    averageMs: number | null;
-    jitterMs: number | null;
-    quality: string | null;
-    checkedAt: string | null;
-    samples: SamplePoint[];
-}
+export type { SamplePoint, StatusRow, SpeedRow, Run, History, RoutedHost }
+    from '../../api/src/db/checks.repository.ts';
 
-export type Level = 'ok' | 'warn' | 'down' | 'unknown';
+export type { Level, Cause, Verdict } from '../../api/src/verdict/verdict.ts';
 
-export type Cause =
-    | 'none'
-    | 'never-checked'
-    | 'link'
-    | 'router'
-    | 'provider'
-    | 'dns'
-    | 'sinkholed'
-    | 'filtered'
-    | 'handshake-cut'
-    | 'remote'
-    | 'unstable';
+export type { Answer, Reach, Rings } from '../../api/src/route/rings.ts';
 
-export interface Verdict
-{
-    level: Level;
-    cause: Cause;
-    reachable: number;
-    total: number;
-    blame: string[];
-}
+export type { Lookup, Agreement, DnsCheck } from '../../api/src/dns/resolve.ts';
 
-export interface SpeedRow
-{
-    measuredAt: string;
-    source: string;
-    downloadMbps: number | null;
-    uploadMbps: number | null;
-    streams: number;
-}
+export type { Handshake, Certificate, TlsCheck } from '../../api/src/tls/handshake.ts';
 
-export interface Status
-{
-    verdict: Verdict;
-    targets: StatusRow[];
-    speed: SpeedRow | null;
-}
+export type { Hop, Trace } from '../../api/src/route/traceroute.ts';
 
-export interface Health
-{
-    status: string;
-    database: { reachable: boolean; latencyMs?: number };
-}
+export type { Adapter, Tunnels } from '../../api/src/route/tunnels.ts';
 
-export interface Lookup
-{
-    server: string;
-    addresses: string[];
-    ms: number | null;
-    error: string | null;
-}
+export type { Path } from '../../api/src/mtu/mtu.ts';
 
-export type Agreement =
-    | 'agree'
-    | 'sinkholed'
-    | 'differ'
-    | 'system-fails'
-    | 'public-fails'
-    | 'both-fail'
-    | 'unknown';
+export type { Sixth, SixthCheck } from '../../api/src/route/sixth.ts';
 
-export interface DnsCheck
-{
-    name: string;
-    system: Lookup | null;
-    reference: Lookup;
-    agreement: Agreement;
-}
+export type { Neighbour, Household } from '../../api/src/route/neighbours.ts';
 
-export type Handshake = 'completed' | 'reset' | 'refused' | 'timeout' | 'rejected';
+export type { Culprit, Cut } from '../../api/src/tls/cut.ts';
 
-export interface Certificate
-{
-    issuer: string;
-    subject: string;
-    names: string[];
-    validTo: string;
-    matchesHost: boolean;
-}
+export type { Errand, Outbound } from '../../api/src/report/outbound.ts';
 
-export interface TlsCheck
-{
-    host: string;
-    port: number;
-    handshake: Handshake;
-    ms: number | null;
-    certificate: Certificate | null;
-    error: string | null;
-}
+export type { Newer } from '../../api/src/update/version.ts';
 
-export interface Run
-{
-    checkedAt: string;
-    lossPercent: number;
-    averageMs: number | null;
-}
+export type { Way } from '../../api/src/proxy/ways.ts';
 
-export interface History
-{
-    targetId: number;
-    name: string;
-    runs: Run[];
-    lossyRuns: number;
-}
+export type { Answered, Tried, Evasion } from '../../api/src/tls/evasion.ts';
 
-export interface Hop
-{
-    number: number;
-    host: string | null;
-    address: string | null;
-    times: (number | null)[];
-}
+export type { Relay } from '../../api/src/proxy/pac.ts';
 
-export interface Trace
-{
-    target: string;
-    hops: Hop[];
-    silentFrom: number | null;
-    error: string | null;
-}
+export type { Told } from '../../api/src/proxy/proxy.ts';
 
-export interface Adapter
-{
-    name: string;
-    addresses: string[];
-    tunnel: boolean;
-}
+export type { Preset } from '../../api/src/proxy/presets.ts';
 
-export interface Tunnels
-{
-    adapters: Adapter[];
-    tunnelling: string[];
-}
+export type { ProxyState } from '../../api/src/http/proxy.routes.ts';
 
-export interface Path
-{
-    host: string;
-    mtu: number | null;
-    ordinary: number;
-    error: string | null;
-}
+export type { Status, Health } from '../../api/src/http/wire.ts';
 
-export type Sixth = 'absent' | 'link-local-only' | 'working' | 'broken';
+export type { Settings, DivertState } from '../../api/src/divert/runner.ts';
 
-export interface SixthCheck
-{
-    state: Sixth;
-    addresses: string[];
-    answer: string | null;
-    ms: number | null;
-}
+export type { Attempt, Found } from '../../api/src/divert/search.ts';
 
-export interface Neighbour
-{
-    address: string;
-    hardware: string;
-    gateway: boolean;
-}
-
-export interface Household
-{
-    neighbours: Neighbour[];
-    error: string | null;
-}
-
-export type Culprit = 'open' | 'name-read' | 'address-blocked' | 'site-down' | 'unclear';
-
-export interface Cut
-{
-    host: string;
-    tcp: string;
-    named: string;
-    unnamed: string;
-    culprit: Culprit;
-}
-
-export interface Errand
-{
-    where: string;
-    why: string;
-    onDemand: boolean;
-}
-
-export interface Outbound
-{
-    errands: Errand[];
-    never: string[];
-}
-
-export interface Newer
-{
-    current: string;
-    latest: string | null;
-    behind: boolean;
-    error: string | null;
-}
-
-export interface Evasion
-{
-    host: string;
-    whole: string;
-    split: string;
-    splittingHelps: boolean;
-    tried: Tried[];
-    works: string | null;
-    error: string | null;
-}
-
-export interface Relay
-{
-    way: string;
-    port: number;
-}
-
-export interface Preset
-{
-    id: string;
-    way: string;
-    overHttps: boolean;
-    gapMs: number;
-}
-
-export interface ProxyState
-{
-    running: boolean;
-    relays: Relay[];
-    preset: string | null;
-    presets: Preset[];
-    ways: string[];
-    overHttps: boolean;
-    system: boolean;
-    systemError: string | null;
-    onNetwork: boolean;
-    lan: string | null;
-}
-
-export interface Tried
-{
-    way: string;
-    answer: string;
-}
+export type { Searched } from '../../api/src/http/divert.routes.ts';
