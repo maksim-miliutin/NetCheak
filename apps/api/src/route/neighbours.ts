@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { makerOf, type Maker } from './vendors.ts';
 import { reasonFor } from './missing.ts';
 import { promisify } from 'node:util';
 
@@ -10,6 +11,8 @@ export interface Neighbour
     hardware: string;
     /** True for the gateway, which is the one machine here that is not a neighbour. */
     gateway: boolean;
+    /** Who made the card, and what kind of thing it probably is. */
+    maker: Maker;
 }
 
 export interface Household
@@ -75,7 +78,12 @@ export function parseNeighbours(output: string, gateway: string | null): Neighbo
         }
 
         seen.add(address[0]);
-        found.push({ address: address[0], hardware: plain, gateway: address[0] === gateway });
+        found.push({
+            address: address[0],
+            hardware: plain,
+            gateway: address[0] === gateway,
+            maker: makerOf(plain),
+        });
     }
 
     return found;

@@ -67,4 +67,28 @@ describe('parseNeighbours', () =>
     {
         expect(parseNeighbours('', null)).toEqual([]);
     });
+
+    // A list of addresses and card numbers says nothing to whoever reads it. The
+    // maker turns it into a router, a phone and a computer.
+    it('says who made each card it found', () =>
+    {
+        const found = parseNeighbours(
+            '192.168.0.1  74-da-88-11-22-33  dynamic\n'
+            + '192.168.0.5  8c-16-45-44-55-66  dynamic\n',
+            '192.168.0.1');
+
+        expect(found[0]?.maker.vendor).toBe('TP-Link');
+        expect(found[0]?.maker.kind).toBe('router');
+        expect(found[1]?.maker.vendor).toBe('Samsung');
+        expect(found[1]?.maker.kind).toBe('phone');
+    });
+
+    it('says nothing about a card whose address was made up for this network', () =>
+    {
+        const found = parseNeighbours(
+            '192.168.0.9  76-da-88-11-22-33  dynamic\n', null);
+
+        expect(found[0]?.maker.randomised).toBe(true);
+        expect(found[0]?.maker.vendor).toBeNull();
+    });
 });
