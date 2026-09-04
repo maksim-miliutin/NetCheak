@@ -49,14 +49,15 @@ function answering(over: Record<string, unknown> = {}): ReturnType<typeof vi.fn>
 {
     const bodies = { ...ANSWERS, ...over };
 
-    return vi.fn(async (input: string) =>
+    return vi.fn(async (input: string, sent?: { body?: string }) =>
     {
         const path = Object.keys(bodies).find((one) => String(input).includes(one));
         const answer = path === undefined ? {} : bodies[path];
 
         // A function rather than a body, for a route that has to answer differently
-        // the second time it is asked.
-        const body = typeof answer === 'function' ? answer() : answer;
+        // the second time it is asked. It is handed what was sent, for the tests
+        // that care what the page asked for and not only what came back.
+        const body = typeof answer === 'function' ? answer(sent?.body) : answer;
 
         if (body === 'fails')
         {
@@ -219,7 +220,10 @@ describe('the page', () =>
         await userEvent.selectOptions(sets, 'shred-2');
 
         expect(screen.queryByText(/one proxy per way of writing/i)).toBeNull();
-        expect(screen.getByText(/ten pieces/i)).toBeTruthy();
+
+        // The name of the set says ten pieces too now, so the sentence beneath it
+        // has to be matched on something the name does not carry.
+        expect(screen.getByText(/none holding anything|за что зацепиться/i)).toBeTruthy();
     });
 
     it('will not offer a set while a proxy is already running', async () =>
@@ -590,5 +594,100 @@ describe('the page', () =>
         render(<App />);
 
         expect(await screen.findByText('0.2.0')).toBeTruthy();
+    });
+
+    // The check already knew which way got a site through and kept the answer beside
+    // the site. Nobody decides which way to use while looking at a site.
+    it('marks in the list which way has got a site through', async () =>
+    {
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/evasion': { host: 'far.example', whole: 'reset', split: 'greeted',
+                splittingHelps: true, works: 'tiny', error: null,
+                tried: [{ way: 'name', answer: 'reset' },
+                    { way: 'tiny', answer: 'greeted' }] },
+            '/api/proxy': { running: false, relays: [], ways: [], overHttps: false,
+                preset: null, presets: [{ id: 'shred-2', way: 'tiny' }],
+                system: false, systemError: null, onNetwork: false, lan: null,
+                key: null, routed: [], told: [] },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        await userEvent.click((await screen.findAllByRole('button',
+            { name: /why it will not open|почему не открывается/i }))[0]!);
+
+        expect(await screen.findByText(/got one site through|провёл один сайт/i))
+            .toBeTruthy();
+    });
+
+    // It used to pass an empty string, which means every way at once: the button
+    // named one way and turned on all ten.
+    it('turns on the set that writes the way the check found', async () =>
+    {
+        let asked: unknown = 'nothing';
+
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/evasion': { host: 'far.example', whole: 'reset', split: 'greeted',
+                splittingHelps: true, works: 'tiny', error: null,
+                tried: [{ way: 'tiny', answer: 'greeted' }] },
+            '/api/proxy': (body?: string) =>
+            {
+                if (body !== undefined)
+                {
+                    asked = JSON.parse(body).preset;
+                }
+
+                return { running: false, relays: [], ways: [], overHttps: false,
+                    preset: null, presets: [{ id: 'shred-2', way: 'tiny' }],
+                    system: false, systemError: null, onNetwork: false, lan: null,
+                    key: null, routed: [], told: [] };
+            },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        await userEvent.click((await screen.findAllByRole('button',
+            { name: /why it will not open|почему не открывается/i }))[0]!);
+
+        await userEvent.click(await screen.findByRole('button',
+            { name: /start the proxy this way|запустить прокси/i }));
+
+        await waitFor(() => expect(asked).toBe('shred-2'));
+    });
+
+    // Asking the server about a blank field spends a round trip to be told it is
+    // not an address, and then shows that as an error where nobody did anything
+    // wrong.
+    it('does not ask the server to watch nothing', async () =>
+    {
+        const asked: string[] = [];
+
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/targets': (body?: string) =>
+            {
+                if (body !== undefined)
+                {
+                    asked.push(body);
+                }
+
+                return { targets: [] };
+            },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        const field = screen.getByLabelText('Address to watch');
+
+        await userEvent.click(field);
+        await userEvent.keyboard('{Enter}');
+
+        expect(asked).toHaveLength(0);
+        expect(screen.queryByText(/not a host/i)).toBeNull();
     });
 });

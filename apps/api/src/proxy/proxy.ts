@@ -1,6 +1,7 @@
 import { createServer, connect, type Socket, type Server } from 'node:net';
 import { writeAs, type Way } from './ways.ts';
-import { mayRelay } from '../access/allowed.ts';
+import { isLoopback, mayRelay } from '../access/allowed.ts';
+import { carriesKey } from '../access/secret.ts';
 import { resolveOverHttps } from '../dns/doh.ts';
 import { isAddress } from '../targets/address.ts';
 
@@ -17,6 +18,14 @@ export interface Told
     pieces: number;
     bytes: number;
     error: string | null;
+
+    /**
+     * How much came back once the connection closed, or nothing while it is still
+     * open. The size of the hello says a connection was made; this says whether
+     * anything came of it, which is the difference between a site that answered and
+     * one that took the greeting and went quiet.
+     */
+    carried?: number;
 }
 
 export interface ProxyOptions
@@ -34,6 +43,9 @@ export interface ProxyOptions
      * asked for by name.
      */
     onNetwork?: boolean;
+
+    /** The word a networked client must carry; nothing when only loopback is served. */
+    key?: string;
 
     /** Told what passed through, so the page can show it going. */
     watch?: (told: Told) => void;
@@ -69,6 +81,8 @@ export function startProxy(options: ProxyOptions = {}): Server
             return;
         }
 
+        const fromNetwork = !isLoopback(client.remoteAddress);
+
         client.once('data', (chunk) =>
         {
             const asked = readConnect(chunk.toString('latin1'));
@@ -76,6 +90,18 @@ export function startProxy(options: ProxyOptions = {}): Server
             if (asked === null)
             {
                 client.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
+
+                return;
+            }
+
+            // A neighbour on the same Wi-Fi passes the address check and is still not
+            // this person. The word is asked of them and never of loopback, where a
+            // program is already trusted.
+            if (fromNetwork && options.key !== undefined
+                && !carriesKey(proxyAuth(chunk.toString('latin1')), options.key))
+            {
+                client.end('HTTP/1.1 407 Proxy Authentication Required\r\n'
+                    + 'Proxy-Authenticate: Basic realm="netcheck"\r\n\r\n');
 
                 return;
             }
@@ -90,6 +116,14 @@ export function startProxy(options: ProxyOptions = {}): Server
     server.listen(options.port ?? DEFAULT_PORT, onNetwork ? '0.0.0.0' : '127.0.0.1');
 
     return server;
+}
+
+/** The proxy password out of the request head, or nothing when none was sent. */
+export function proxyAuth(head: string): string | undefined
+{
+    const line = /proxy-authorization:\s*(.+)/i.exec(head);
+
+    return line === null ? undefined : line[1].trim();
 }
 
 export function readConnect(head: string): { host: string; port: number } | null
@@ -159,6 +193,18 @@ async function open(
 
                 setTimeout(() => upstream.write(piece), gapMs * index);
             });
+        });
+
+        // Counted rather than guessed: a filter that lets the hello through and then
+        // drops the answer leaves a line that looks like success, and the number of
+        // bytes that came back is what tells them apart.
+        let carried = 0;
+
+        upstream.on('data', (piece: Buffer) => { carried += piece.length; });
+
+        client.once('close', () =>
+        {
+            watch?.({ host, port, way, pieces: 0, bytes: 0, error: null, carried });
         });
 
         upstream.pipe(client);

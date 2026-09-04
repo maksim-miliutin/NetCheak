@@ -57,6 +57,7 @@ async function main(): Promise<void>
     {
         db,
         repository: new ChecksRepository(db),
+        databaseFile: placed.file,
         version,
         port,
         logLevel: 'warn',

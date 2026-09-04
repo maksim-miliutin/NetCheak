@@ -1,4 +1,5 @@
 import { Why } from './Why';
+import { marks, type Working } from '../read/working';
 import type { Words } from '../words';
 import type
 {
@@ -7,6 +8,9 @@ import type
 
 interface ProxyProps
 {
+    /** Which ways have got a site through, so the choice is not blind. */
+    working: Working;
+
     proxy: ProxyState | null;
     say: Words;
     chosen: string;
@@ -31,7 +35,7 @@ interface ProxyProps
  * mind, and an enabled control that does nothing is a lie.
  */
 export function Proxy({ proxy, say, chosen, onChoose, busy, onSwitch, forPhone,
-    onForPhone }: ProxyProps)
+    onForPhone, working }: ProxyProps)
 {
     const running = proxy?.running === true;
     const presets = proxy?.presets ?? [];
@@ -52,7 +56,9 @@ export function Proxy({ proxy, say, chosen, onChoose, busy, onSwitch, forPhone,
 
             <div className="top">
                 {/* Kept English in both languages on purpose, which is exactly what a
-                    translator reaches for first: it made this one a car driver. */}
+                    translator reaches for first: it made this one a car driver. The
+                    preset names below are not like that — they say what they do, and
+                    they say it in the reader's language. */}
                 <h2 translate="no">{say.proxyTitle}</h2>
                 <span className="state" role="status">{state}</span>
             </div>
@@ -69,9 +75,15 @@ export function Proxy({ proxy, say, chosen, onChoose, busy, onSwitch, forPhone,
                 >
                     <option value="">{say.proxyAllWays}</option>
 
+                    {/* What has already worked, said in the list where the choosing
+                        happens. The check knows it and used to keep it beside the
+                        site it came from, which is not where anybody decides. */}
                     {presets.map((preset) => (
-                        <option key={preset.id} value={preset.id} translate="no">
+                        <option key={preset.id} value={preset.id}>
                             {say.presetNames[preset.id] ?? preset.id}
+                            {marks(working, preset.way) > 0
+                                ? ` — ${say.gotThrough(marks(working, preset.way))}`
+                                : ''}
                         </option>
                     ))}
                 </select>

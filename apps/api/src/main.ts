@@ -46,7 +46,13 @@ async function main(): Promise<void>
     const { port, skipped } = await choosePort(wanted);
 
     const app = await buildServer(
-        { db, repository: new ChecksRepository(db), version: VERSION, port });
+        {
+            db,
+            repository: new ChecksRepository(db),
+            databaseFile: placed.file,
+            version: VERSION,
+            port,
+        });
 
     // Shutdown order matters: stop accepting requests first, then close the file.
     // The other way round kills requests that are still being served.
