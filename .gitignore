@@ -12,3 +12,7 @@ WinDivert64.sys
 # Recordings taken off this machine's own wire: a hello from a site somebody opened
 # and a datagram out of a call they were in. They belong to whoever recorded them.
 bin/
+
+# The word a phone carries to use the proxy from the network. Kept beside the
+# database and never in it, and never here either.
+network-key
