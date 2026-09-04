@@ -1,5 +1,7 @@
 import type
 {
+    DivertState,
+    Searched,
     DnsCheck,
     Health,
     History,
@@ -11,6 +13,7 @@ import type
     Household,
     Newer,
     Outbound,
+    Settings,
     ProxyState,
     SixthCheck,
     Trace,
@@ -128,6 +131,36 @@ export const toggleProxy = (preset?: string, onNetwork = false): Promise<ProxySt
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(preset === undefined ? { onNetwork } : { preset, onNetwork }),
+    });
+
+export const routeHost = (host: string, way: string): Promise<ProxyState> =>
+    request<ProxyState>('/proxy/routes',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ host, way }),
+    });
+
+export const forgetRoute = (host: string): Promise<ProxyState> =>
+    request<ProxyState>(`/proxy/routes/${encodeURIComponent(host)}`, { method: 'DELETE' });
+
+export const getDivert = (): Promise<DivertState> => request<DivertState>('/divert');
+
+export const setDivert = (running: boolean,
+    settings?: Partial<Settings>): Promise<DivertState> =>
+    request<DivertState>('/divert',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ running, ...settings }),
+    });
+
+export const searchDivert = (target: string): Promise<Searched> =>
+    request<Searched>('/divert/search',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
     });
 
 export const runSpeed = (): Promise<unknown> => request<unknown>('/speed', { method: 'POST' });
