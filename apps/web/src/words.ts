@@ -17,12 +17,52 @@ export interface Words
     whoCuts: string;
     tryEvasion: string;
     tools: string;
-    startProxy: string;
+    proxyTitle: string;
+    proxySet: string;
+    proxyAllWays: string;
+    proxyAllSays: string;
+    connect: string;
+    disconnect: string;
+    proxyConnecting: string;
+    proxyDisconnecting: string;
+    proxyOff: string;
+    ownSites: string;
+    ownSitesSays: string;
+    siteAddress: string;
+    addSite: string;
+    dropSite: (host: string) => string;
+    foundItself: string;
+    noOwnSites: string;
+    divertTitle: string;
+    divertSays: string;
+    why: string;
+    whyClosed: string;
+    whySlow: string;
+    asking: string;
+    divertNoRights: string;
+    divertHowTo: string;
+    divertWith: string;
+    wentThrough: (host: string, pieces: number) => string;
+    cameBack: (bytes: number) => string;
+    nothingCameBack: string;
+    didNotGo: (host: string) => string;
+    nothingWentYet: string;
+    nothingWhy: string;
+    divertRunning: string;
+    divertStopped: string;
+    divertNeedsRights: string;
+    divertQuiet: string;
+    findFor: string;
+    find: string;
+    finding: string;
+    foundNothing: string;
+    foundAlready: string;
+    foundIt: (fooling: string, ttl: number) => string;
+    triedSoFar: (n: number) => string;
     wayNames: Record<string, string>;
     answerNames: Record<string, string>;
     useThisWay: (way: string) => string;
     triedAll: string;
-    stopProxy: string;
     proxyRunning: string;
     proxyStep: (n: number) => string;
     systemSet: string;
@@ -30,11 +70,13 @@ export interface Words
     systemLimit: string;
     forPhone: string;
     phoneHow: (address: string, port: number) => string;
+    phoneSteps: string[];
+    phoneCheck: string;
+    phoneKey: string;
+    phoneKeyWhy: string;
     phoneWarn: string;
-    presets: string;
     presetNames: Record<string, string>;
     presetSays: Record<string, string>;
-    usePreset: string;
     presetRunning: (name: string) => string;
     proxyBlind: string;
     proxyOverHttps: string;
@@ -54,6 +96,8 @@ export interface Words
     neverDoes: string;
     devices: (n: number) => string;
     theRouter: string;
+    kinds: Record<string, string>;
+    madeUpAddress: string;
     sixth: Record<string, string>;
     measuring: string;
     mtuFull: (mtu: number) => string;
@@ -115,7 +159,67 @@ const EN: Words =
     whoCuts: 'who cuts it',
     tryEvasion: 'would splitting help',
     tools: 'Tools and disclosure',
-    startProxy: 'Start the splitting proxy',
+    proxyTitle: 'Proxy',
+    proxySet: 'Set',
+    proxyAllWays: 'All ways at once',
+    proxyAllSays: 'One proxy per way of writing, each on its own port, and the routing '
+        + 'file sends a site to whichever one got it through. Start here when no set '
+        + 'has been tried yet.',
+    connect: 'Connect',
+    disconnect: 'Disconnect',
+    proxyConnecting: 'Connecting…',
+    proxyDisconnecting: 'Disconnecting…',
+    proxyOff: 'Not connected',
+    ownSites: 'Own sites',
+    ownSitesSays: 'Kept on this machine. A name is all that is stored, and nothing '
+        + 'about a visit.',
+    siteAddress: 'Site address',
+    addSite: 'Add',
+    dropSite: (host: string) => `Drop ${host}`,
+    foundItself: 'found by a check',
+    noOwnSites: 'Nothing here yet. A check adds a site once it finds a way that works '
+        + 'for it, and you can put one in by hand.',
+    divertTitle: 'Driver',
+    why: 'why',
+    whyClosed: 'why it will not open',
+    whySlow: 'why it is slow',
+    asking: 'asking…',
+    divertSays: 'Reaches what a proxy cannot: a game, a call, anything that never '
+        + 'reads a proxy setting.',
+    divertNoRights: 'Not started: this needs administrator rights and does not have '
+        + 'them. The proxy above works without them and reaches most things.',
+    divertHowTo: 'To have it too: close this, right-click the program and choose Run '
+        + 'as administrator.',
+    divertWith: 'Goes on and off with the proxy above.',
+    wentThrough: (host: string, pieces: number) =>
+        `${host} — hello sent in ${pieces}`,
+    cameBack: (bytes: number) =>
+        bytes < 1024 ? `${bytes} B back` : `${Math.round(bytes / 1024)} KB back`,
+    nothingCameBack: 'nothing came back',
+    didNotGo: (host: string) => `${host} — did not answer`,
+    nothingWentYet: 'Nothing has gone through yet. Open a site in a browser and the '
+        + 'lines will come.',
+    nothingWhy: 'A game or a chat client will not show up here whatever you open: it '
+        + 'opens its own connections without asking the system where to go. Only the '
+        + 'driver sees those, and it needs this program started as administrator.',
+    divertRunning: 'Running',
+    divertStopped: 'Not running',
+    divertNeedsRights: 'The driver would not start. Close this and start the program '
+        + 'again as administrator.',
+    divertQuiet: 'Nothing yet. Open a site or join a call and the lines will come.',
+    findFor: 'Site that will not open',
+    find: 'Find what gets it through',
+    finding: 'Trying them in turn…',
+    foundNothing: 'Nothing tried got it through. Either the address itself is being '
+        + 'dropped, which no copy can help with, or the way past it is one this does '
+        + 'not know yet.',
+    foundAlready: 'It opens on its own. Nothing was started for it, and nothing needs '
+        + 'to be: cutting packets for a site that answers is all cost.',
+    foundIt: (fooling: string, ttl: number) =>
+        `Got through with ${fooling}${fooling === 'ttl' ? `, ${ttl} hops` : ''}. `
+            + 'Kept for this site, and the driver now helps it and leaves the rest '
+            + 'alone.',
+    triedSoFar: (n: number) => `${n} tried`,
     answerNames:
     {
         'greeted': 'got through',
@@ -135,7 +239,6 @@ const EN: Words =
         'many': 'cut into four',
         'records': 'split across two records',
     },
-    stopProxy: 'Stop the proxy',
     proxyRunning: 'Running, one for each way of writing.',
     proxyStep: (n) => `${n}.`,
     systemSet: 'The system proxy setting is done, so this covers the browser and most '
@@ -144,8 +247,6 @@ const EN: Words =
         + 'goes straight out. Stopping puts the setting back as it was.',
     systemFailed: 'The system setting could not be changed, so only programs told '
         + 'about the proxy by hand will use it.',
-    presets: 'Ready-made settings',
-    usePreset: 'use this one',
     presetRunning: (name) => `Running: ${name}.`,
 
     presetNames:
@@ -186,8 +287,20 @@ const EN: Words =
     },
 
     forPhone: 'Reachable from a phone',
-    phoneHow: (address, port) => `On the phone, in the Wi-Fi settings for this network, `
-        + `set the HTTP proxy to ${address} port ${port}.`,
+    phoneHow: (address, port) => `The phone needs this address: ${address}, port ${port}.`,
+    phoneSteps:
+    [
+        'The phone has to be on this same Wi-Fi. Over mobile data it cannot reach here.',
+        'Settings, Wi-Fi, hold this network, then Modify or the arrow beside it.',
+        'Proxy: Manual. Host is the address above, port is the number beside it.',
+        'Any username will do; the password is the one shown above.',
+        'Save, then open a site that would not open before.',
+    ],
+    phoneCheck: 'A line for it appears in the list below when it goes through. If none '
+        + 'does, the phone is on another network or the proxy went to sleep.',
+    phoneKey: 'Password',
+    phoneKeyWhy: 'The phone is asked for this and nothing on this machine is. Anybody '
+        + 'else on the same Wi-Fi is near enough to reach here and is still not you.',
     phoneWarn: 'While this is on, anybody else on this network can route their traffic '
         + 'through here too. Turn it off when the phone no longer needs it.',
 
@@ -217,6 +330,16 @@ const EN: Words =
     neverDoes: 'What it never does',
     devices: (n) => `${n} devices on this network`,
     theRouter: 'the router',
+    kinds:
+    {
+        router: 'router',
+        phone: 'phone or tablet',
+        computer: 'computer',
+        console: 'console',
+        other: 'something small',
+        unknown: '',
+    },
+    madeUpAddress: 'made-up address',
     measuring: 'measuring…',
     mtuFull: (mtu) => `Packets of the usual ${mtu} bytes cross whole.`,
     mtuShort: (mtu, ordinary) => `Only ${mtu} bytes cross whole, where ${ordinary} is `
@@ -391,8 +514,9 @@ const EN: Words =
         'name-read': 'The connection opens, survives a handshake that does not say '
             + 'which site is wanted, and dies when it does. Something along the way '
             + 'reads the name and objects to it.',
-        'address-blocked': 'The handshake dies whether the site is named or not, so '
-            + 'the objection is to the address itself.',
+        'address-blocked': 'The handshake dies the same way whether the site is named '
+            + 'or not. The objection is to the address rather than to the name, and '
+            + 'there is nothing in the hello left to rewrite.',
         'site-down': 'Nothing is listening at that address, which is the site being '
             + 'down rather than anything cutting it.',
         'unclear': 'The attempts did not differ in a way that says who cut it.',
@@ -437,7 +561,65 @@ const RU: Words =
     whoCuts: 'кто режет',
     tryEvasion: 'поможет ли дробление',
     tools: 'Средства и раскрытие',
-    startProxy: 'Включить дробящий прокси',
+    proxyTitle: 'Proxy',
+    proxySet: 'Набор',
+    proxyAllWays: 'Все способы сразу',
+    proxyAllSays: 'По прокси на каждый способ записи, каждый на своём порту, а файл '
+        + 'автонастройки отправляет сайт на тот, который его пропустил. Отсюда стоит '
+        + 'начинать, пока ни один набор не пробовали.',
+    connect: 'Подключить',
+    disconnect: 'Отключить',
+    proxyConnecting: 'Подключаю…',
+    proxyDisconnecting: 'Отключаю…',
+    proxyOff: 'Не подключён',
+    ownSites: 'Свои сайты',
+    ownSitesSays: 'Хранятся на этой машине. Сохраняется только имя, ничего о '
+        + 'посещении.',
+    siteAddress: 'Адрес сайта',
+    addSite: 'Добавить',
+    dropSite: (host: string) => `Убрать ${host}`,
+    foundItself: 'нашла проверка',
+    noOwnSites: 'Пока пусто. Проверка сама добавит сюда сайт, для которого найдёт '
+        + 'работающий способ, а вписать можно и руками.',
+    divertTitle: 'Driver',
+    why: 'почему',
+    whyClosed: 'почему не открывается',
+    whySlow: 'почему медленно',
+    asking: 'спрашиваю…',
+    divertSays: 'Достаёт туда, куда прокси не дотянется: игра, звонок, всё, что о '
+        + 'настройке прокси не спрашивает.',
+    divertNoRights: 'Не запущен: нужны права администратора, а их нет. Прокси выше '
+        + 'работает и без них, и достаёт до большинства.',
+    divertHowTo: 'Чтобы был и он: закрой это, нажми на программу правой кнопкой и '
+        + 'выбери «Запуск от имени администратора».',
+    divertWith: 'Включается и выключается вместе с прокси.',
+    wentThrough: (host: string, pieces: number) =>
+        `${host} — приветствие ушло ${pieces} частями`,
+    cameBack: (bytes: number) =>
+        bytes < 1024 ? `${bytes} Б назад` : `${Math.round(bytes / 1024)} КБ назад`,
+    nothingCameBack: 'в ответ ничего',
+    didNotGo: (host: string) => `${host} — не ответил`,
+    nothingWentYet: 'Пока ничего не прошло. Открой сайт в браузере — строки пойдут.',
+    nothingWhy: 'Игра или мессенджер сюда не попадут, что бы ты ни открывал: они '
+        + 'открывают соединения сами, не спрашивая систему. Их видит только драйвер, '
+        + 'а ему нужен запуск от администратора.',
+    divertRunning: 'Работает',
+    divertStopped: 'Выключен',
+    divertNeedsRights: 'Драйвер не запустился. Закрой это и запусти программу заново '
+        + 'от администратора.',
+    divertQuiet: 'Пока пусто. Открой сайт или зайди в звонок — строки пойдут.',
+    findFor: 'Сайт, который не открывается',
+    find: 'Подобрать способ',
+    finding: 'Перебираю по очереди…',
+    foundNothing: 'Ничего из перебранного не помогло. Либо топят сам адрес — тут '
+        + 'копия бессильна, — либо нужен приём, которого этот перебор пока не знает.',
+    foundAlready: 'Он и так открывается. Ничего не запускалось и не нужно: резать '
+        + 'пакеты ради сайта, который отвечает, — чистая трата.',
+    foundIt: (fooling: string, ttl: number) =>
+        `Прошло с ${fooling}${fooling === 'ttl' ? `, ${ttl} перехода` : ''}. `
+            + 'Запомнено за этим сайтом: теперь драйвер помогает ему, а остальных не '
+            + 'трогает.',
+    triedSoFar: (n: number) => `перебрано: ${n}`,
     answerNames:
     {
         'greeted': 'прошло',
@@ -457,7 +639,6 @@ const RU: Words =
         'many': 'на четыре части',
         'records': 'двумя записями',
     },
-    stopProxy: 'Выключить прокси',
     proxyRunning: 'Запущены, по одному на каждый способ записи.',
     proxyStep: (n) => `${n}.`,
     systemSet: 'Системная настройка прокси проставлена — покрыт браузер и большинство '
@@ -466,8 +647,6 @@ const RU: Words =
         + 'напрямую. При выключении настройка вернётся как была.',
     systemFailed: 'Системную настройку изменить не удалось, поэтому прокси будут '
         + 'пользоваться только программы, которым про него сказали вручную.',
-    presets: 'Готовые наборы',
-    usePreset: 'включить этот',
     presetRunning: (name) => `Работает: ${name}.`,
 
     presetNames:
@@ -508,8 +687,22 @@ const RU: Words =
     },
 
     forPhone: 'Доступен с телефона',
-    phoneHow: (address, port) => `На телефоне в настройках этой сети Wi-Fi укажите `
-        + `HTTP-прокси ${address}, порт ${port}.`,
+    phoneHow: (address, port) => `Телефону нужен этот адрес: ${address}, порт ${port}.`,
+    phoneSteps:
+    [
+        'Телефон должен быть в этой же сети Wi-Fi. По мобильному интернету он сюда '
+            + 'не достучится.',
+        'Настройки, Wi-Fi, долгое нажатие на сеть, потом «Изменить» или стрелка рядом.',
+        'Прокси: вручную. Адрес — тот, что выше, порт — число рядом с ним.',
+        'Имя пользователя — любое, пароль — тот, что показан выше.',
+        'Сохранить и открыть сайт, который до этого не открывался.',
+    ],
+    phoneCheck: 'Когда пойдёт, в ленте ниже появится строка. Не появляется — телефон '
+        + 'в другой сети или прокси уснул.',
+    phoneKey: 'Пароль',
+    phoneKeyWhy: 'Его спрашивают у телефона и не спрашивают ни у чего на этой машине. '
+        + 'Сосед по той же сети достаточно близко, чтобы сюда дотянуться, и всё ещё '
+        + 'не ты.',
     phoneWarn: 'Пока это включено, любой в этой сети тоже может пустить свой трафик '
         + 'через вас. Выключайте, когда телефону перестанет быть нужно.',
 
@@ -538,6 +731,16 @@ const RU: Words =
     neverDoes: 'Чего он не делает никогда',
     devices: (n) => `устройств в этой сети: ${n}`,
     theRouter: 'роутер',
+    kinds:
+    {
+        router: 'роутер',
+        phone: 'телефон или планшет',
+        computer: 'компьютер',
+        console: 'приставка',
+        other: 'что-то небольшое',
+        unknown: '',
+    },
+    madeUpAddress: 'адрес выдуман',
     measuring: 'измеряю…',
     mtuFull: (mtu) => `Пакеты обычных ${mtu} байт проходят целиком.`,
     mtuShort: (mtu, ordinary) => `Целиком проходит только ${mtu} байт вместо обычных `
@@ -711,8 +914,9 @@ const RU: Words =
         'open': 'Соединение открывается и проходит целиком, значит здесь ему никто не мешает.',
         'name-read': 'Соединение открывается, переживает рукопожатие без указания сайта '
             + 'и обрывается, когда сайт назван. Кто-то по пути читает имя и возражает.',
-        'address-blocked': 'Рукопожатие обрывается и с именем, и без него, значит '
-            + 'возражают против самого адреса.',
+        'address-blocked': 'Рукопожатие не проходит ни с именем, ни без него, и '
+            + 'кончается одинаково. Возражают против самого адреса, а не против имени, '
+            + 'и переписать приветствие тут нечем.',
         'site-down': 'По этому адресу никто не слушает — сайт лежит, а не режется.',
         'unclear': 'Попытки не разошлись так, чтобы можно было назвать виновника.',
     },
