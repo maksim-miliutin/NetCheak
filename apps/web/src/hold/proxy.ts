@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { forgetRoute, routeHost, toggleProxy } from '../api';
+import { forgetRoute, getProxy, routeHost, searchProxy, toggleProxy, type Chose }
+    from '../api';
 import type { ProxyState, Way } from '../types';
 
 /**
@@ -20,7 +21,16 @@ export interface Proxying
     typedSite: string;
     siteWay: Way;
 
+    /** What is typed into the search for a set, before anybody presses it. */
+    typedFind: string;
+    finding: boolean;
+    chose: Chose | null;
+
     pick: (preset: string) => void;
+    typeFind: (host: string) => void;
+
+    /** Tries the ways against one site and turns on the set that got through. */
+    find: () => Promise<void>;
     servePhone: (yes: boolean) => void;
     typeSite: (host: string) => void;
     pickWay: (way: Way) => void;
@@ -42,6 +52,9 @@ export function useProxy(complain: (about: string) => void): Proxying
     const [switching, setSwitching] = useState(false);
     const [typedSite, setTypedSite] = useState('');
     const [siteWay, setSiteWay] = useState<Way>('name');
+    const [typedFind, setTypedFind] = useState('');
+    const [finding, setFinding] = useState(false);
+    const [chose, setChose] = useState<Chose | null>(null);
 
     // The same four lines wrapped seven handlers in the page. What differs
     // between them is one call; what they share is what to do when it throws.
@@ -64,8 +77,47 @@ export function useProxy(complain: (about: string) => void): Proxying
         switching,
         typedSite,
         siteWay,
+        typedFind,
+        finding,
+        chose,
 
         pick: setChosen,
+        typeFind: setTypedFind,
+
+        find: async () =>
+        {
+            const host = typedFind.trim();
+
+            if (host === '')
+            {
+                return;
+            }
+
+            setFinding(true);
+            setChose(null);
+
+            try
+            {
+                const answer = await searchProxy(host);
+
+                setChose(answer);
+
+                // The server turned it on, so what is held here is behind by one:
+                // asked again rather than guessed at.
+                if (answer.started)
+                {
+                    setState(await getProxy());
+                }
+            }
+            catch (err)
+            {
+                complain((err as Error).message);
+            }
+            finally
+            {
+                setFinding(false);
+            }
+        },
         servePhone: setForPhone,
         typeSite: setTypedSite,
         pickWay: setSiteWay,

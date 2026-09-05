@@ -59,6 +59,19 @@ export interface Words
     foundAlready: string;
     foundIt: (fooling: string, ttl: number) => string;
     triedSoFar: (n: number) => string;
+    helpedSites: string;
+    helpedSays: string;
+    helpAlso: string;
+    showLog: (n: number) => string;
+    saveLog: string;
+    findSet: string;
+    findingSet: string;
+    findSetFor: string;
+    setChosen: (preset: string) => string;
+    setNotFound: string;
+    setNotNeeded: string;
+    alsoHost: string;
+    noneHelped: string;
     wayNames: Record<string, string>;
     answerNames: Record<string, string>;
     useThisWay: (way: string) => string;
@@ -77,6 +90,8 @@ export interface Words
     phoneWarn: string;
     presetNames: Record<string, string>;
     presetSays: Record<string, string>;
+    gotThrough: (sites: number) => string;
+    noneChecked: string;
     presetRunning: (name: string) => string;
     proxyBlind: string;
     proxyOverHttps: string;
@@ -98,6 +113,7 @@ export interface Words
     theRouter: string;
     kinds: Record<string, string>;
     madeUpAddress: string;
+    makerUnknown: string;
     sixth: Record<string, string>;
     measuring: string;
     mtuFull: (mtu: number) => string;
@@ -192,11 +208,11 @@ const EN: Words =
         + 'as administrator.',
     divertWith: 'Goes on and off with the proxy above.',
     wentThrough: (host: string, pieces: number) =>
-        `${host} — hello sent in ${pieces}`,
+        `${host}: hello sent in ${pieces}`,
     cameBack: (bytes: number) =>
         bytes < 1024 ? `${bytes} B back` : `${Math.round(bytes / 1024)} KB back`,
     nothingCameBack: 'nothing came back',
-    didNotGo: (host: string) => `${host} — did not answer`,
+    didNotGo: (host: string) => `${host}: did not answer`,
     nothingWentYet: 'Nothing has gone through yet. Open a site in a browser and the '
         + 'lines will come.',
     nothingWhy: 'A game or a chat client will not show up here whatever you open: it '
@@ -220,6 +236,23 @@ const EN: Words =
             + 'Kept for this site, and the driver now helps it and leaves the rest '
             + 'alone.',
     triedSoFar: (n: number) => `${n} tried`,
+    helpedSites: 'Sites the driver helps',
+    helpedSays: 'A filter is one thing: what got one of these through gets the next '
+        + 'one through too. Adding a site here spends nothing, and searching again '
+        + 'for each of them would spend a minute apiece.',
+    helpAlso: 'Help this one too',
+    showLog: (n: number) => n === 1 ? 'the log, one line' : `the log, ${n} lines`,
+    saveLog: 'Save',
+    findSet: 'Find a set',
+    findingSet: 'Trying them\u2026',
+    findSetFor: 'Which site to try it on',
+    setChosen: (preset: string) => `${preset} got it through, and is on now`,
+    setNotFound: 'None of the eight got it through. That is a block on the address, '
+        + 'and no way of writing a hello gets past one.',
+    setNotNeeded: 'It opens on its own. Nothing to turn on for it.',
+    alsoHost: 'Another site',
+    noneHelped: 'Nothing yet, so copies go to every site this machine talks to, '
+        + 'which is more than any of them asked for. Search for one above.',
     answerNames:
     {
         'greeted': 'got through',
@@ -237,7 +270,10 @@ const EN: Words =
         'name': 'cut through the name',
         'first-byte': 'one byte first',
         'many': 'cut into four',
+        'tiny': 'cut into ten',
         'records': 'split across two records',
+        'records-three': 'split across three records',
+        'both': 'cut and split at once',
     },
     proxyRunning: 'Running, one for each way of writing.',
     proxyStep: (n) => `${n}.`,
@@ -251,23 +287,28 @@ const EN: Words =
 
     presetNames:
     {
-        'lite-1': 'Lite 1',
-        'lite-2': 'Lite 2',
-        'lite-3': 'Lite 3',
-        'shred-1': 'Shred 1',
-        'shred-2': 'Shred 2',
-        'records-1': 'Records 1',
-        'records-2': 'Records 2',
-        'records-3': 'Records 3',
-        'mix-1': 'Mix 1',
-        'mix-2': 'Mix 2',
+        'lite-1': 'Name cut',
+        'lite-2': 'Name cut, own DNS',
+        'lite-3': 'First byte alone',
+        'shred-1': 'Four pieces',
+        'shred-2': 'Ten pieces',
+        'records-1': 'Two records',
+        'records-2': 'Three records',
+        'records-3': 'Two records, spaced',
+        'mix-1': 'Records and cuts',
+        'mix-2': 'Records and cuts, slow',
     },
+
+    gotThrough: (sites: number) =>
+        sites === 1 ? 'got one site through' : `got ${sites} sites through`,
+    noneChecked: 'Press “why it will not open” on a site to find out which of these '
+        + 'gets past what stopped it.',
 
     presetSays:
     {
         'lite-1': 'The hello cut through the name. The lightest thing that gets past a '
             + 'filter reading it, and where to start.',
-        'lite-2': 'The same, with names looked up over HTTPS — for a block that lives '
+        'lite-2': 'The same, with names looked up over HTTPS, for a block that lives '
             + 'in the answer rather than in the packet.',
         'lite-3': 'One byte, then the rest, for a filter that reads only the packet a '
             + 'connection opens with.',
@@ -304,8 +345,8 @@ const EN: Words =
     phoneWarn: 'While this is on, anybody else on this network can route their traffic '
         + 'through here too. Turn it off when the phone no longer needs it.',
 
-    systemLimit: 'Programs that open their own connections without asking the system — '
-        + 'some games and clients among them — are not covered. Covering every packet '
+    systemLimit: 'Programs that open their own connections without asking the system, '
+        + 'some games and clients among them, are not covered. Covering every packet '
         + 'whatever the program means a driver inside the kernel, and this tool does '
         + 'not ask for those rights.',
     proxyBlind: 'It relays bytes without reading them: the traffic stays encrypted end '
@@ -317,7 +358,7 @@ const EN: Words =
     checkThisSite: 'Check this site',
     dragMe: 'Make a bookmark with this as its address. On a page that will not open, '
         + 'press it: this tool opens with that site already being checked. Nothing '
-        + 'watches your browsing — the bookmark simply carries the address across.',
+        + 'watches your browsing. The bookmark simply carries the address across.',
     bookmarklet: 'check with netcheck',
     checking: 'checking…',
     whatLeaves: 'What leaves this machine',
@@ -340,6 +381,7 @@ const EN: Words =
         unknown: '',
     },
     madeUpAddress: 'made-up address',
+    makerUnknown: 'maker not in the list',
     measuring: 'measuring…',
     mtuFull: (mtu) => `Packets of the usual ${mtu} bytes cross whole.`,
     mtuShort: (mtu, ordinary) => `Only ${mtu} bytes cross whole, where ${ordinary} is `
@@ -594,12 +636,12 @@ const RU: Words =
         + 'выбери «Запуск от имени администратора».',
     divertWith: 'Включается и выключается вместе с прокси.',
     wentThrough: (host: string, pieces: number) =>
-        `${host} — приветствие ушло ${pieces} частями`,
+        `${host}: приветствие ушло ${pieces} частями`,
     cameBack: (bytes: number) =>
         bytes < 1024 ? `${bytes} Б назад` : `${Math.round(bytes / 1024)} КБ назад`,
     nothingCameBack: 'в ответ ничего',
-    didNotGo: (host: string) => `${host} — не ответил`,
-    nothingWentYet: 'Пока ничего не прошло. Открой сайт в браузере — строки пойдут.',
+    didNotGo: (host: string) => `${host}: не ответил`,
+    nothingWentYet: 'Пока ничего не прошло. Открой сайт в браузере, и строки пойдут.',
     nothingWhy: 'Игра или мессенджер сюда не попадут, что бы ты ни открывал: они '
         + 'открывают соединения сами, не спрашивая систему. Их видит только драйвер, '
         + 'а ему нужен запуск от администратора.',
@@ -607,19 +649,36 @@ const RU: Words =
     divertStopped: 'Выключен',
     divertNeedsRights: 'Драйвер не запустился. Закрой это и запусти программу заново '
         + 'от администратора.',
-    divertQuiet: 'Пока пусто. Открой сайт или зайди в звонок — строки пойдут.',
+    divertQuiet: 'Пока пусто. Открой сайт или зайди в звонок, и строки пойдут.',
     findFor: 'Сайт, который не открывается',
     find: 'Подобрать способ',
     finding: 'Перебираю по очереди…',
-    foundNothing: 'Ничего из перебранного не помогло. Либо топят сам адрес — тут '
-        + 'копия бессильна, — либо нужен приём, которого этот перебор пока не знает.',
+    foundNothing: 'Ничего из перебранного не помогло. Либо топят сам адрес, и тут '
+        + 'копия бессильна, либо нужен приём, которого этот перебор пока не знает.',
     foundAlready: 'Он и так открывается. Ничего не запускалось и не нужно: резать '
-        + 'пакеты ради сайта, который отвечает, — чистая трата.',
+        + 'пакеты ради сайта, который отвечает, значит чистая трата.',
     foundIt: (fooling: string, ttl: number) =>
         `Прошло с ${fooling}${fooling === 'ttl' ? `, ${ttl} перехода` : ''}. `
             + 'Запомнено за этим сайтом: теперь драйвер помогает ему, а остальных не '
             + 'трогает.',
     triedSoFar: (n: number) => `перебрано: ${n}`,
+    helpedSites: 'Кому драйвер помогает',
+    helpedSays: 'Фильтр один: что провело один из этих сайтов, проведёт и следующий. '
+        + 'Добавить сюда сайт не стоит ничего, а подбирать заново для каждого стоит по '
+        + 'минуте на штуку.',
+    helpAlso: 'Помочь и этому',
+    showLog: (n: number) => `лента, строк: ${n}`,
+    saveLog: 'Сохранить',
+    findSet: 'Подобрать набор',
+    findingSet: 'Перебираю\u2026',
+    findSetFor: 'На каком сайте пробовать',
+    setChosen: (preset: string) => `${preset} провёл его, и уже включён`,
+    setNotFound: 'Ни один из восьми не провёл. Это блокировка по адресу, и запись '
+        + 'приветствия тут бессильна.',
+    setNotNeeded: 'Он и так открывается. Включать ради него нечего.',
+    alsoHost: 'Ещё сайт',
+    noneHelped: 'Пока никому, поэтому копии идут всем сайтам подряд, а это больше, '
+        + 'чем просил любой из них. Подбери способ для одного выше.',
     answerNames:
     {
         'greeted': 'прошло',
@@ -637,11 +696,14 @@ const RU: Words =
         'name': 'разрез по имени',
         'first-byte': 'сначала один байт',
         'many': 'на четыре части',
+        'tiny': 'на десять частей',
         'records': 'двумя записями',
+        'records-three': 'тремя записями',
+        'both': 'и разрез, и записи',
     },
     proxyRunning: 'Запущены, по одному на каждый способ записи.',
     proxyStep: (n) => `${n}.`,
-    systemSet: 'Системная настройка прокси проставлена — покрыт браузер и большинство '
+    systemSet: 'Системная настройка прокси проставлена: покрыт браузер и большинство '
         + 'других программ на этой машине, настраивать вручную ничего не нужно. Через '
         + 'прокси идут только сайты, которым он понадобился, остальной трафик уходит '
         + 'напрямую. При выключении настройка вернётся как была.',
@@ -651,32 +713,37 @@ const RU: Words =
 
     presetNames:
     {
-        'lite-1': 'Lite 1',
-        'lite-2': 'Lite 2',
-        'lite-3': 'Lite 3',
-        'shred-1': 'Shred 1',
-        'shred-2': 'Shred 2',
-        'records-1': 'Records 1',
-        'records-2': 'Records 2',
-        'records-3': 'Records 3',
-        'mix-1': 'Mix 1',
-        'mix-2': 'Mix 2',
+        'lite-1': 'Name cut',
+        'lite-2': 'Name cut, own DNS',
+        'lite-3': 'First byte alone',
+        'shred-1': 'Four pieces',
+        'shred-2': 'Ten pieces',
+        'records-1': 'Two records',
+        'records-2': 'Three records',
+        'records-3': 'Two records, spaced',
+        'mix-1': 'Records and cuts',
+        'mix-2': 'Records and cuts, slow',
     },
+
+    gotThrough: (sites: number) =>
+        sites === 1 ? 'провёл один сайт' : `провёл сайтов: ${sites}`,
+    noneChecked: 'Нажми «почему не открывается» у сайта, и станет видно, какой из них '
+        + 'проходит мимо того, что его остановило.',
 
     presetSays:
     {
         'lite-1': 'Приветствие разрезано по имени. Самое лёгкое, что обходит фильтр, '
-            + 'который это имя читает, — с него и начинают.',
-        'lite-2': 'То же плюс разрешение имён по HTTPS — на случай, когда блокировка '
+            + 'который это имя читает. С него и начинают.',
+        'lite-2': 'То же плюс разрешение имён по HTTPS, на случай, когда блокировка '
             + 'живёт в ответе, а не в пакете.',
-        'lite-3': 'Один байт, потом остальное, — для фильтра, который читает только '
+        'lite-3': 'Один байт, потом остальное: для фильтра, который читает только '
             + 'тот пакет, которым открывается соединение.',
         'shred-1': 'Приветствие на четыре части, для фильтра, который собирает две.',
-        'shred-2': 'На десять частей, ни в одной нет ничего, за что зацепиться. Цена — '
+        'shred-2': 'На десять частей, ни в одной нет ничего, за что зацепиться. Цена: '
             + 'запись и пауза на каждую.',
         'records-1': 'Рукопожатие в двух записях TLS вместо одной. Это вообще не '
             + 'дробление пакетов, и обходит оно другие фильтры.',
-        'records-2': 'Три записи вместо двух — для фильтра, который собирает обратно '
+        'records-2': 'Три записи вместо двух: для фильтра, который собирает обратно '
             + 'две.',
         'records-3': 'Две записи, разнесённые далеко. Медленнее на каждом соединении, '
             + 'поэтому берут, когда быстрые не сработали.',
@@ -693,11 +760,11 @@ const RU: Words =
         'Телефон должен быть в этой же сети Wi-Fi. По мобильному интернету он сюда '
             + 'не достучится.',
         'Настройки, Wi-Fi, долгое нажатие на сеть, потом «Изменить» или стрелка рядом.',
-        'Прокси: вручную. Адрес — тот, что выше, порт — число рядом с ним.',
-        'Имя пользователя — любое, пароль — тот, что показан выше.',
+        'Прокси: вручную. Адрес тот, что выше, порт число рядом с ним.',
+        'Имя пользователя любое, пароль тот, что показан выше.',
         'Сохранить и открыть сайт, который до этого не открывался.',
     ],
-    phoneCheck: 'Когда пойдёт, в ленте ниже появится строка. Не появляется — телефон '
+    phoneCheck: 'Когда пойдёт, в ленте ниже появится строка. Не появляется, значит телефон '
         + 'в другой сети или прокси уснул.',
     phoneKey: 'Пароль',
     phoneKeyWhy: 'Его спрашивают у телефона и не спрашивают ни у чего на этой машине. '
@@ -706,19 +773,19 @@ const RU: Words =
     phoneWarn: 'Пока это включено, любой в этой сети тоже может пустить свой трафик '
         + 'через вас. Выключайте, когда телефону перестанет быть нужно.',
 
-    systemLimit: 'Программы, открывающие соединения сами, не спрашивая систему, — '
-        + 'часть игр и клиентов — не покрыты. Чтобы покрыть каждый пакет любой '
+    systemLimit: 'Программы, открывающие соединения сами, не спрашивая систему, '
+        + 'часть игр и клиентов, не покрыты. Чтобы покрыть каждый пакет любой '
         + 'программы, нужен драйвер в ядре, а таких прав инструмент не просит.',
     proxyBlind: 'Байты переносятся без чтения: трафик остаётся зашифрованным от конца '
         + 'до конца, и ключа к нему здесь нет.',
     proxyOverHttps: 'Имена, идущие через него, разрешаются по HTTPS. Дробление записи '
         + 'отвечает фильтру, читающему имя; это отвечает резольверу, отдающему чужой '
-        + 'адрес, — а это совсем другая блокировка.',
+        + 'адрес, а это совсем другая блокировка.',
     trying: 'пробую…',
     checkThisSite: 'Проверить этот сайт',
     dragMe: 'Создайте закладку с этим адресом. На странице, которая не открывается, '
         + 'нажмите её: инструмент откроется с уже начатой проверкой этого сайта. Ни за '
-        + 'чем следить не нужно — закладка просто переносит адрес.',
+        + 'чем следить не нужно: закладка просто переносит адрес.',
     bookmarklet: 'проверить в netcheck',
     checking: 'проверяю…',
     whatLeaves: 'Что уходит с этой машины',
@@ -741,6 +808,7 @@ const RU: Words =
         unknown: '',
     },
     madeUpAddress: 'адрес выдуман',
+    makerUnknown: 'производителя нет в списке',
     measuring: 'измеряю…',
     mtuFull: (mtu) => `Пакеты обычных ${mtu} байт проходят целиком.`,
     mtuShort: (mtu, ordinary) => `Целиком проходит только ${mtu} байт вместо обычных `
@@ -812,7 +880,7 @@ const RU: Words =
         {
             headline: 'Линия за роутером легла',
             detail: () => 'Роутер отвечает, значит кабель и коробка в порядке. Дальше него '
-                + 'не отвечает ничего — вопрос к провайдеру.',
+                + 'не отвечает ничего. Вопрос к провайдеру.',
         },
         'dns':
         {
@@ -836,7 +904,7 @@ const RU: Words =
         {
             headline: 'Соединение открывается и обрывается',
             detail: (v) => `${list(v.blame, 'и')} принимают подключение и рвут его на `
-                + 'рукопожатии. По дороге ничего не теряется — поэтому цифры ниже '
+                + 'рукопожатии. По дороге ничего не теряется, поэтому цифры ниже '
                 + 'выглядят здоровыми.',
         },
         'remote':
@@ -885,12 +953,12 @@ const RU: Words =
         'filtered':
         [
             'Смена DNS не поможет: поиск имени уже работает',
-            'Проверьте те же имена из другой сети — переедет ли за вами',
+            'Проверьте те же имена из другой сети и посмотрите, переедет ли за вами',
         ],
         'handshake-cut':
         [
             'Связь рвётся после открытия, значит адрес достижим',
-            'Проверьте те же имена из другой сети — переедет ли за вами',
+            'Проверьте те же имена из другой сети и посмотрите, переедет ли за вами',
         ],
         'remote': [],
         'unstable':
@@ -902,10 +970,10 @@ const RU: Words =
 
     evasion:
     {
-        'helps': 'Приветствие целиком не проходит, а один из способов записи — '
+        'helps': 'Приветствие целиком не проходит, а один из способов записи проходит, '
             + 'проходит. Какой именно, видно ниже, и прокси можно включить им же.',
         'no-block': 'Приветствие проходит целиком, значит обходить нечего.',
-        'no-help': 'Приветствие не проходит ни целиком, ни по частям — дроблением эту '
+        'no-help': 'Приветствие не проходит ни целиком, ни по частям: дроблением эту '
             + 'блокировку не обойти.',
     },
 
@@ -917,7 +985,7 @@ const RU: Words =
         'address-blocked': 'Рукопожатие не проходит ни с именем, ни без него, и '
             + 'кончается одинаково. Возражают против самого адреса, а не против имени, '
             + 'и переписать приветствие тут нечем.',
-        'site-down': 'По этому адресу никто не слушает — сайт лежит, а не режется.',
+        'site-down': 'По этому адресу никто не слушает: сайт лежит, а не режется.',
         'unclear': 'Попытки не разошлись так, чтобы можно было назвать виновника.',
     },
 
@@ -937,12 +1005,12 @@ const RU: Words =
     {
         'agree': 'Ваш резольвер отвечает так же, как публичный.',
         'sinkholed': 'Ваш резольвер отдаёт для этого имени адрес, до которого нельзя дойти. '
-            + 'Такой ответ пришёл не от сайта — кто-то встал на его место.',
+            + 'Такой ответ пришёл не от сайта. Кто-то встал на его место.',
         'differ': 'Ваш резольвер отдаёт не тот адрес, что публичный. Чаще всего это просто '
             + 'ближайший сервер сети доставки, так что это повод посмотреть, а не вывод.',
         'system-fails': 'Ваш резольвер не отвечает, а публичный отвечает. Смена DNS-сервера '
             + 'это починит.',
-        'public-fails': 'Ваш резольвер отвечает, а публичный нет — обычно это значит, что '
+        'public-fails': 'Ваш резольвер отвечает, а публичный нет. Обычно это значит, что '
             + 'публичный заблокирован, а не сломан.',
         'both-fail': 'Не ответил ни один резольвер, возможно самого имени больше нет.',
         'unknown': 'Системный резольвер прочитать не удалось.',

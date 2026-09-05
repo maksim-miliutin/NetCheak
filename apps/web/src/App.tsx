@@ -35,6 +35,8 @@ import { Waiting } from './parts/Waiting';
 import { useProxy } from './hold/proxy';
 import { useDriver } from './hold/driver';
 import { useAsked } from './hold/asked';
+import { whatWorks } from './read/working';
+import { presetFor } from '../../api/src/proxy/presets';
 import { pickTongue, WORDS } from './words';
 import { showStamp } from './read/when';
 import type
@@ -42,6 +44,7 @@ import type
     DnsCheck,
     Health,
     History,
+    Way,
     Path,
     Cut,
     Evasion,
@@ -120,6 +123,10 @@ export function App()
 
         return () => clearInterval(again);
     }, [anyRunning]);
+
+    // Every check that has answered, gathered into one thing: which ways got a site
+    // through. It sat beside each site, and the choosing happens somewhere else.
+    const working = whatWorks(Object.values(evasions.found));
 
     const say = WORDS[tongue];
     const [loaded, setLoaded] = useState(false);
@@ -290,9 +297,17 @@ export function App()
 
     const watch = async (): Promise<void> =>
     {
+        // A blank field is not an address, and asking the server about one spends a
+        // round trip to be told so — then shows the answer as an error, where there
+        // is no error and nothing anybody did wrong.
+        if (typed.trim() === '')
+        {
+            return;
+        }
+
         try
         {
-            await watchTarget(typed);
+            await watchTarget(typed.trim());
             setTyped('');
             await load();
         }
@@ -472,6 +487,12 @@ export function App()
                                     <span className="host">{say.madeUpAddress}</span>
                                 )}
 
+                                {/* Said rather than left blank: an empty column
+                                    reads as broken, and not knowing is an answer. */}
+                                {one.maker.vendor === null && !one.maker.randomised && (
+                                    <span className="host">{say.makerUnknown}</span>
+                                )}
+
                                 {one.gateway && <span className="host">{say.theRouter}</span>}
                             </li>
                         ))}
@@ -487,27 +508,9 @@ export function App()
 
             {status?.speed != null && <Speed speed={status.speed} say={say} />}
 
-            <ul className="lanes">
-                {(status?.targets ?? []).map((target) => (
-                    <Lane
-                        key={target.targetId}
-                        target={target}
-                        past={history.find((h) => h.targetId === target.targetId) ?? null}
-                        say={say}
-                        trace={answerFor(traces.found, target.targetId)}
-                        onTrace={traces.ask}
-                        path={answerFor(paths.found, target.targetId)}
-                        onMeasure={paths.ask}
-                        cut={answerFor(cuts.found, target.targetId)}
-                        onCut={cuts.ask}
-                        evasion={answerFor(evasions.found, target.targetId)}
-                        onEvade={evasions.ask}
-                        onUseWay={proxying.toggle}
-                        forget={forget}
-                    />
-                ))}
-            </ul>
-
+            {/* The two things somebody came here to press, above the list rather
+                than below it: the list is as long as the targets are many, and
+                scrolling past all of them to reach a button is the wrong order. */}
             <Proxy
                 proxy={proxying.state}
                 say={say}
@@ -517,6 +520,12 @@ export function App()
                 onSwitch={() => void proxying.toggle()}
                 forPhone={proxying.forPhone}
                 onForPhone={proxying.servePhone}
+                working={working}
+                typedFind={proxying.typedFind}
+                onTypeFind={proxying.typeFind}
+                onFind={() => void proxying.find()}
+                finding={proxying.finding}
+                chose={proxying.chose}
             />
 
             <Driver
@@ -528,6 +537,9 @@ export function App()
                 searching={driving.searching}
                 found={driving.found}
                 onFind={() => void driving.search()}
+                helped={driving.helped}
+                onAlso={() => void driving.also()}
+                onForget={(host) => void driving.forget(host)}
             />
 
             <Sites
@@ -546,6 +558,29 @@ export function App()
                 tool actually does. */}
             {/* Four grey links loose in the page read as leftovers. Folded together
                 they read as a drawer somebody may open. */}
+
+            <ul className="lanes">
+                {(status?.targets ?? []).map((target) => (
+                    <Lane
+                        key={target.targetId}
+                        target={target}
+                        past={history.find((h) => h.targetId === target.targetId) ?? null}
+                        say={say}
+                        trace={answerFor(traces.found, target.targetId)}
+                        onTrace={traces.ask}
+                        path={answerFor(paths.found, target.targetId)}
+                        onMeasure={paths.ask}
+                        cut={answerFor(cuts.found, target.targetId)}
+                        onCut={cuts.ask}
+                        evasion={answerFor(evasions.found, target.targetId)}
+                        onEvade={evasions.ask}
+                        onUseWay={(way) => void proxying.toggle(
+                            presetFor(way as Way)?.id)}
+                        forget={forget}
+                    />
+                ))}
+            </ul>
+
             <details className="tools">
                 <summary className="small">{say.tools}</summary>
 

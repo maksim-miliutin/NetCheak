@@ -51,7 +51,11 @@ function answering(over: Record<string, unknown> = {}): ReturnType<typeof vi.fn>
 
     return vi.fn(async (input: string, sent?: { body?: string }) =>
     {
-        const path = Object.keys(bodies).find((one) => String(input).includes(one));
+        // The longest match wins: /api/proxy also matches /api/proxy/search, and
+        // taking the first one found made the second route unreachable.
+        const path = Object.keys(bodies)
+            .filter((one) => String(input).includes(one))
+            .sort((a, b) => b.length - a.length)[0];
         const answer = path === undefined ? {} : bodies[path];
 
         // A function rather than a body, for a route that has to answer differently
@@ -342,6 +346,9 @@ describe('the page', () =>
 
         vi.stubGlobal('fetch', answering(
         {
+            // Counted apart from /api/divert/found, which the matcher below would
+            // otherwise fold into this one.
+            '/api/divert/found': { found: [] },
             '/api/divert': () =>
             {
                 asked += 1;
@@ -458,7 +465,11 @@ describe('the page', () =>
         render(<App />);
         await screen.findByText(/unsteady|нестабильна/i);
 
-        expect(await screen.findByText(/discord\.com — /)).toBeTruthy();
+        // Folded by default now, so the summary is what is on the page and the
+        // lines are inside it.
+        expect(await screen.findByText(/the log, one line|лента, строк: 1/i))
+            .toBeTruthy();
+        expect(screen.getByText(/discord\.com: /)).toBeTruthy();
     });
 
     // Saying only that the proxy is on leaves no way to tell whether anything is
@@ -689,5 +700,179 @@ describe('the page', () =>
 
         expect(asked).toHaveLength(0);
         expect(screen.queryByText(/not a host/i)).toBeNull();
+    });
+
+    // Searching again for each site would spend a minute apiece to arrive at the
+    // answer already in hand: the filter is one thing.
+    it('helps another site with what already worked', async () =>
+    {
+        let asked: unknown = null;
+
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/divert/found': (body?: string) =>
+            {
+                if (body !== undefined)
+                {
+                    asked = JSON.parse(body).host;
+                }
+
+                return { found: [{ host: 'discord.com', fooling: 'ttl', ttl: 6,
+                    repeats: 6 }] };
+            },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        expect(await screen.findByText('discord.com')).toBeTruthy();
+
+        // One field for both doing things now: two asking for a site address a
+        // hand's width apart was a question about which one.
+        await userEvent.type(
+            screen.getByLabelText(/site that will not open|сайт, который не открывается/i),
+            'youtube.com');
+        await userEvent.click(screen.getByRole('button',
+            { name: /help this one too|помочь и этому/i }));
+
+        await waitFor(() => expect(asked).toBe('youtube.com'));
+    });
+
+    // Empty, and copies go to every site the machine talks to.
+    it('says why an empty list is worse than a full one', async () =>
+    {
+        vi.stubGlobal('fetch', answering({ '/api/divert/found': { found: [] } }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        expect(await screen.findByText(/every site this machine talks to|всем сайтам подряд/i))
+            .toBeTruthy();
+    });
+
+    // An empty column reads as broken. Not knowing is an answer and should look
+    // like one.
+    it('says when it does not know who made a device', async () =>
+    {
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/neighbours': { neighbours:
+            [
+                { address: '192.168.0.9', hardware: '01-23-45-67-89-ab',
+                    gateway: false,
+                    maker: { vendor: null, kind: 'unknown', randomised: false } },
+            ], error: null },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        await userEvent.click(await screen.findByText(
+            /devices on this network|устройств/i));
+
+        expect(screen.getByText(/not in the list|нет в списке/i)).toBeTruthy();
+    });
+
+    // The one thing somebody wants to do with a log is send it to whoever is
+    // helping, and that used to mean selecting a scrolling box with a mouse.
+    it('lets the log be taken out of here', async () =>
+    {
+        const clicked: string[] = [];
+
+        vi.stubGlobal('URL',
+        {
+            createObjectURL: () => 'blob:made-up',
+            revokeObjectURL: () => undefined,
+        });
+
+        const made = document.createElement.bind(document);
+
+        vi.spyOn(document, 'createElement').mockImplementation((tag: string) =>
+        {
+            const made_ = made(tag) as HTMLAnchorElement;
+
+            if (tag === 'a')
+            {
+                made_.click = () => clicked.push(made_.download);
+            }
+
+            return made_;
+        });
+
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/divert': { running: true, settings: null, error: null,
+                lines: ['discord.com: 1388 bytes, 6 copies'] },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        await userEvent.click(await screen.findByText(/the log|лента, строк/i));
+        await userEvent.click(screen.getByRole('button', { name: /save|сохранить/i }));
+
+        expect(clicked).toHaveLength(1);
+        expect(clicked[0]).toContain('driver');
+    });
+
+    // Four steps by hand before this: add the site, ask why it will not open, read
+    // which way got through, press the button beside it.
+    it('finds a set and turns it on from one press', async () =>
+    {
+        let asked: unknown = null;
+
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/proxy/search': (body?: string) =>
+            {
+                if (body !== undefined)
+                {
+                    asked = JSON.parse(body).host;
+                }
+
+                return { host: 'blocked.example', preset: 'shred-2', started: true,
+                    error: null,
+                    tried: { host: 'blocked.example', whole: 'reset', split: 'greeted',
+                        splittingHelps: true, works: 'tiny', error: null, tried: [] } };
+            },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        await userEvent.type(
+            screen.getByLabelText(/which site to try it on|на каком сайте/i),
+            'blocked.example');
+        await userEvent.click(screen.getByRole('button',
+            { name: /find a set|подобрать набор/i }));
+
+        await waitFor(() => expect(asked).toBe('blocked.example'));
+        // The list of sets marks ways that worked with the same words, so this
+        // looks for what only the answer says: that it is on now.
+        expect(await screen.findByText(/is on now|уже включён/i)).toBeTruthy();
+    });
+
+    // A block on the address is not one a different hello gets past, and saying so
+    // beats leaving somebody to try the other nine.
+    it('says plainly when no set gets a site through', async () =>
+    {
+        vi.stubGlobal('fetch', answering(
+        {
+            '/api/proxy/search': { host: 'blocked.example', preset: null,
+                started: false, error: null,
+                tried: { host: 'blocked.example', whole: 'silent', split: 'silent',
+                    splittingHelps: false, works: null, error: null, tried: [] } },
+        }));
+
+        render(<App />);
+        await screen.findByText(/unsteady|нестабильна/i);
+
+        await userEvent.type(
+            screen.getByLabelText(/which site to try it on|на каком сайте/i), 'x.example');
+        await userEvent.click(screen.getByRole('button',
+            { name: /find a set|подобрать набор/i }));
+
+        expect(await screen.findByText(/block on the address|блокировка по адресу/i))
+            .toBeTruthy();
     });
 });

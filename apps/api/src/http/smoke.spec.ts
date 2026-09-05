@@ -409,3 +409,45 @@ describe('helping more than the site that was searched for', () =>
         expect(await answer.text()).not.toContain('gone.example');
     });
 });
+
+describe('finding the set that gets a site through', () =>
+{
+    async function search(host: string): Promise<Response>
+    {
+        return await ask('/api/proxy/search',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ host }),
+        });
+    }
+
+    it('refuses a host that is not one', async () =>
+    {
+        expect((await search('not a host at all')).status).toBe(400);
+    });
+
+    /**
+     * The route walks out to the site eight times, once per way of writing a hello.
+     * How long that takes is the network's business: here it answered at once, on a
+     * machine where the address is dropped rather than refused it took longer than
+     * the whole suite is allowed.
+     *
+     * So what is checked is the shape of the answer and not the walk: that the route
+     * exists, refuses what is not a host, and hands back something the page can read
+     * without guessing. The walking itself is checked where it lives, against a
+     * server this test starts.
+     */
+    it('answers a site it cannot reach without hanging on it', async () =>
+    {
+        const answer = await search('127.0.0.1');
+
+        expect(answer.status).toBe(200);
+
+        const said = await body<{ host: string; preset: string | null;
+            started: boolean }>(answer);
+
+        expect(said.host).toBe('127.0.0.1');
+        expect(typeof said.started).toBe('boolean');
+    }, 20000);
+});

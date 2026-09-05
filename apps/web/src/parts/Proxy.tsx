@@ -1,4 +1,5 @@
-import { Why } from './Why';
+import { Log, Why } from './Why';
+import type { Chose } from '../api';
 import { marks, type Working } from '../read/working';
 import type { Words } from '../words';
 import type
@@ -10,6 +11,12 @@ interface ProxyProps
 {
     /** Which ways have got a site through, so the choice is not blind. */
     working: Working;
+
+    typedFind: string;
+    onTypeFind: (host: string) => void;
+    onFind: () => void;
+    finding: boolean;
+    chose: Chose | null;
 
     proxy: ProxyState | null;
     say: Words;
@@ -35,7 +42,7 @@ interface ProxyProps
  * mind, and an enabled control that does nothing is a lie.
  */
 export function Proxy({ proxy, say, chosen, onChoose, busy, onSwitch, forPhone,
-    onForPhone, working }: ProxyProps)
+    onForPhone, working, typedFind, onTypeFind, onFind, finding, chose }: ProxyProps)
 {
     const running = proxy?.running === true;
     const presets = proxy?.presets ?? [];
@@ -167,35 +174,70 @@ export function Proxy({ proxy, say, chosen, onChoose, busy, onSwitch, forPhone,
 
             {/* Held while it runs and written down nowhere: a list of the sites
                 somebody opened is the one thing this tool promises not to keep. */}
-            {running && (
-                <ul className="lines" aria-live="off">
-                    {/* Why it might stay empty, said where the question comes up
-                        rather than behind the fold above: somebody watching an empty
-                        list is asking this exact thing. */}
-                    {(proxy.told ?? []).length === 0 && (
-                        <>
-                            <li className="quiet">{say.nothingWentYet}</li>
-                            <li className="quiet">{say.nothingWhy}</li>
-                        </>
-                    )}
+            {/* Turned into lines here rather than inside the log: what a line says
+                is this block's business, and folding it away is the log's. */}
+            {/* Ten sets and a person guessing which. The check that answers this ran
+                on a target row and its answer landed here; now the press is here too. */}
+            {!running && (
+                <div className="pick">
+                    <label htmlFor="find-set">{say.findSetFor}</label>
 
-                    {[...(proxy.told ?? [])].reverse().map((one, at) => (
-                        <li key={`${at}-${one.host}-${one.bytes}`}>
-                            <code>
-                                {one.error === null
-                                    ? say.wentThrough(one.host, one.pieces)
-                                    : say.didNotGo(one.host)}
+                    <input
+                        id="find-set"
+                        value={typedFind}
+                        disabled={finding}
+                        onChange={(event) => onTypeFind(event.target.value)}
+                        onKeyDown={(event) => event.key === 'Enter' && onFind()}
+                    />
 
-                                {/* A filter that lets the hello through and drops the
-                                    answer leaves a line that looks like success. */}
-                                {one.carried !== undefined && ' · '}
-                                {one.carried !== undefined && (one.carried === 0
-                                    ? say.nothingCameBack
-                                    : say.cameBack(one.carried))}
-                            </code>
-                        </li>
-                    ))}
-                </ul>
+                    <button
+                        type="button"
+                        disabled={finding || typedFind.trim() === ''}
+                        onClick={onFind}
+                    >
+                        {finding ? say.findingSet : say.findSet}
+                    </button>
+                </div>
+            )}
+
+            {chose !== null && (
+                <p className="says">
+                    {chose.preset !== null
+                        && say.setChosen(say.presetNames[chose.preset] ?? chose.preset)}
+                    {chose.preset === null && chose.tried.whole === 'greeted'
+                        && say.setNotNeeded}
+                    {chose.preset === null && chose.tried.whole !== 'greeted'
+                        && say.setNotFound}
+                </p>
+            )}
+
+            {running && (proxy.told ?? []).length > 0 && (
+                <Log
+                    lines={[...(proxy.told ?? [])].reverse().map((one) =>
+                    {
+                        const went = one.error === null
+                            ? say.wentThrough(one.host, one.pieces)
+                            : say.didNotGo(one.host);
+
+                        if (one.carried === undefined)
+                        {
+                            return went;
+                        }
+
+                        return `${went} · ${one.carried === 0
+                            ? say.nothingCameBack
+                            : say.cameBack(one.carried)}`;
+                    })}
+                    say={say}
+                    name="proxy"
+                />
+            )}
+
+            {running && (proxy.told ?? []).length === 0 && (
+                <>
+                    <p className="says small">{say.nothingWentYet}</p>
+                    <p className="says small">{say.nothingWhy}</p>
+                </>
             )}
         </section>
     );

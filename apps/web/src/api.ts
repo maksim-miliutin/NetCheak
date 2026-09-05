@@ -146,6 +146,24 @@ export const forgetRoute = (host: string): Promise<ProxyState> =>
 
 export const getDivert = (): Promise<DivertState> => request<DivertState>('/divert');
 
+export interface Chose
+{
+    host: string;
+    tried: Evasion;
+    /** The set that got through, or nothing when none did. */
+    preset: string | null;
+    started: boolean;
+    error: string | null;
+}
+
+export const searchProxy = (host: string): Promise<Chose> =>
+    request<Chose>('/proxy/search',
+    {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ host }),
+    });
+
 export const helpAlso = (host: string): Promise<{ found: DriverFound[] }> =>
     request<{ found: DriverFound[] }>('/divert/found',
     {

@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { startProxy, type Told } from '../proxy/proxy.ts';
 import { networkKey } from '../access/secret.ts';
 import { WAYS, type Way } from '../proxy/ways.ts';
-import { inOrder, presetById } from '../proxy/presets.ts';
+import { inOrder, presetById, presetFor } from '../proxy/presets.ts';
+import { tryEvasion } from '../tls/evasion.ts';
+import { hostFrom } from './refusal.ts';
 import { buildPac } from '../proxy/pac.ts';
 import { lanAddress } from '../proxy/lan.ts';
 import { clearSystemProxy, setSystemProxy } from '../proxy/system.ts';
@@ -280,6 +282,43 @@ export function proxyRoutes(app: FastifyInstance,
      * sites are stopped by different filters, so a single way serves one of them and
      * fails the rest.
      */
+    /**
+     * Finds the set that gets a site through and turns it on, in one press.
+     *
+     * All of this could be done by hand already: add the site, ask why it will not
+     * open, read which way got through, press the button beside it. Four steps to
+     * arrive somewhere the machine could have walked to on its own.
+     */
+    app.post<{ Body: { host?: string } }>('/api/proxy/search', async (request) =>
+    {
+        const { host } = hostFrom(request.body?.host, 'That is not a host to try');
+        const tried = await tryEvasion(host);
+
+        if (tried.error !== null)
+        {
+            return { host, tried, preset: null, started: false, error: tried.error };
+        }
+
+        // Nothing to do for a site that opens on its own, and turning a proxy on for
+        // it would be all cost.
+        const preset = presetFor(tried.works);
+
+        if (preset === null)
+        {
+            return { host, tried, preset: null, started: false, error: null };
+        }
+
+        if (proxies.running)
+        {
+            await proxies.stop();
+        }
+
+        await proxies.start(preset.id, true, false,
+            `http://127.0.0.1:${port}/api/proxy.pac`);
+
+        return { host, tried, preset: preset.id, started: true, error: null };
+    });
+
     app.post<{ Body: { overHttps?: boolean; preset?: string; onNetwork?: boolean } }>(
         '/api/proxy',
         async (request) =>
