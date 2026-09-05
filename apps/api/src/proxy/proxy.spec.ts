@@ -172,6 +172,30 @@ describe('the proxy', () =>
         expect(told[0]?.error).toBeNull();
     });
 
+    // A filter that lets the hello through and then drops the answer leaves a line
+    // that looks like success. The bytes that came back are what tell them apart.
+    it('says how much came back once the connection closes', async () =>
+    {
+        const told: Told[] = [];
+        const upstream = await listening();
+        const proxy = startProxy({ port: 0, gapMs: 0, overHttps: false,
+            watch: (one) => told.push(one) });
+
+        running.push(proxy);
+
+        await new Promise((done) => proxy.once('listening', done));
+
+        const port = (proxy.address() as { port: number }).port;
+
+        await through(port, '127.0.0.1', upstream.port, buildHello('example.com'));
+        await new Promise((done) => setTimeout(done, 120));
+
+        const closed = told.filter((one) => one.carried !== undefined);
+
+        expect(closed).toHaveLength(1);
+        expect(closed[0]?.carried).toBeGreaterThanOrEqual(0);
+    });
+
     // A site that would not answer is the interesting line, not the missing one. The
     // helper above waits for the proxy to answer, and on a refusal it never does.
     it('tells when the far end could not be reached', async () =>
@@ -247,5 +271,90 @@ describe('the proxy', () =>
         const wanted = Buffer.from('example.com');
 
         expect(upstream.chunks.some((chunk) => chunk.includes(wanted))).toBe(false);
+    });
+});
+
+/**
+ * A neighbour on the same Wi-Fi passes the address check and is still not this
+ * person. The word is asked of them and never of loopback.
+ *
+ * Every connection here comes from loopback, so what the proxy reads as the far
+ * address is set on the socket: a machine in a container has no second address to
+ * knock from, and the path that matters is the one for somebody who does.
+ */
+describe('the word a networked client carries', () =>
+{
+    const WORD = 'a-word-for-the-phone';
+
+    async function asking(from: string, word?: string): Promise<string>
+    {
+        const proxy = startProxy({ port: 0, onNetwork: true, key: WORD, gapMs: 0,
+            overHttps: false });
+
+        running.push(proxy);
+
+        proxy.prependListener('connection', (socket) =>
+        {
+            Object.defineProperty(socket, 'remoteAddress',
+                { value: from, configurable: true });
+        });
+
+        await new Promise((ready) => proxy.once('listening', ready));
+
+        const port = (proxy.address() as { port: number }).port;
+
+        return await new Promise<string>((done) =>
+        {
+            const socket = connect(port, '127.0.0.1', () =>
+            {
+                const carried = word === undefined ? '' : 'Proxy-Authorization: Basic '
+                    + Buffer.from(`phone:${word}`).toString('base64') + '\r\n';
+
+                socket.write(`CONNECT example.com:443 HTTP/1.1\r\n${carried}\r\n`);
+            });
+
+            let said = '';
+
+            socket.on('data', (piece) =>
+            {
+                said += piece.toString('latin1');
+
+                if (said.includes('\r\n'))
+                {
+                    socket.destroy();
+                    done(said.split('\r\n')[0] ?? '');
+                }
+            });
+
+            socket.on('error', () => done('dropped'));
+            setTimeout(() => { socket.destroy(); done(said || 'silent'); }, 2000);
+        });
+    }
+
+    it('asks nothing of this machine', async () =>
+    {
+        expect(await asking('127.0.0.1')).toContain('200');
+    });
+
+    it('asks the network for the word', async () =>
+    {
+        expect(await asking('192.168.1.50')).toContain('407');
+    });
+
+    it('lets the network through once it carries the word', async () =>
+    {
+        expect(await asking('192.168.1.50', WORD)).toContain('200');
+    });
+
+    it('refuses the wrong word', async () =>
+    {
+        expect(await asking('192.168.1.50', 'not it')).toContain('407');
+    });
+
+    // The word is not a way in for anybody: an address outside the local network is
+    // dropped before it is asked for anything.
+    it('drops an address off the network, word or no word', async () =>
+    {
+        expect(await asking('8.8.8.8', WORD)).not.toContain('200');
     });
 });
