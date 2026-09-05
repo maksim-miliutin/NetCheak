@@ -1,7 +1,9 @@
+import { Log } from './Why';
 import type { Words } from '../words';
 import type
 {
     DivertState,
+    DriverFound,
     Searched,
 } from '../types';
 
@@ -12,6 +14,9 @@ interface DriverProps
     busy: boolean;
     typed: string;
     onType: (typed: string) => void;
+    helped: DriverFound[];
+    onAlso: () => void;
+    onForget: (host: string) => void;
     searching: boolean;
     found: Searched | null;
     onFind: () => void;
@@ -29,10 +34,9 @@ interface DriverProps
  * says what it is doing, line by line, rather than working quietly.
  */
 export function Driver({ divert, say, busy, typed, onType, searching, found,
-    onFind }: DriverProps)
+    onFind, helped, onAlso, onForget }: DriverProps)
 {
     const running = divert?.running === true;
-    const lines = divert?.lines ?? [];
 
     return (
         <section className={busy ? 'driver working' : 'driver'} aria-busy={busy}>
@@ -67,6 +71,8 @@ export function Driver({ divert, say, busy, typed, onType, searching, found,
 
             {/* The whole point, and the thing that took an afternoon by hand: try the
                 settings in turn against one site and keep the first that answers. */}
+            {/* One field, two things to do with it. Two fields both asking for a
+                site address, a hand's width apart, is a question about which one. */}
             <div className="pick">
                 <label htmlFor="find-for">{say.findFor}</label>
 
@@ -85,6 +91,20 @@ export function Driver({ divert, say, busy, typed, onType, searching, found,
                 >
                     {searching ? say.finding : say.find}
                 </button>
+
+                {/* Only once something has been found: with nothing to copy this
+                    button has nothing to do, and a button that does nothing is worse
+                    than one that is not there. */}
+                {helped.length > 0 && (
+                    <button
+                        type="button"
+                        className="ghost"
+                        disabled={searching || typed.trim() === ''}
+                        onClick={onAlso}
+                    >
+                        {say.helpAlso}
+                    </button>
+                )}
             </div>
 
             {found !== null && (
@@ -100,14 +120,36 @@ export function Driver({ divert, say, busy, typed, onType, searching, found,
                 </p>
             )}
 
-            {running && (
-                <ul className="lines" aria-live="off">
-                    {lines.length === 0 && <li className="quiet">{say.divertQuiet}</li>}
+            {/* Who gets the copies. Empty, and everything the machine talks to gets
+                them — which is more than any of it asked for. */}
+            <h3>{say.helpedSites}</h3>
+            <p className="says small">{say.helpedSays}</p>
 
-                    {lines.map((line, at) => (
-                        <li key={`${at}-${line}`}><code>{line}</code></li>
-                    ))}
-                </ul>
+            <ul className="sites-list">
+                {helped.length === 0 && <li className="quiet">{say.noneHelped}</li>}
+
+                {helped.map((one) => (
+                    <li key={one.host}>
+                        <code>{one.host}</code>
+                        <span>{one.fooling}{one.fooling === 'ttl' ? ` ${one.ttl}` : ''}</span>
+
+                        <button
+                            type="button"
+                            className="ghost forget"
+                            onClick={() => onForget(one.host)}
+                        >
+                            ×
+                        </button>
+                    </li>
+                ))}
+            </ul>
+
+            {running && divert.lines.length > 0 && (
+                <Log lines={divert.lines} say={say} name="driver" />
+            )}
+
+            {running && divert.lines.length === 0 && (
+                <p className="says small">{say.divertQuiet}</p>
             )}
         </section>
     );

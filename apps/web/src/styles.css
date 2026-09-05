@@ -1409,15 +1409,16 @@ input:focus-visible
 }
 
 .sites ul,
-.proxy .lines,
-.driver .lines
+.driver .sites-list,
+.log .lines
 {
     padding: 0;
     margin: 16px 0 0;
     list-style: none;
 }
 
-.sites li
+.sites li,
+.driver .sites-list li
 {
     display: flex;
     gap: 14px;
@@ -1427,7 +1428,8 @@ input:focus-visible
     font-size: 13px;
 }
 
-.sites li span
+.sites li span,
+.driver .sites-list span
 {
     color: var(--ink-soft);
 }
@@ -1441,7 +1443,8 @@ input:focus-visible
     font-size: 12px;
 }
 
-.sites li .forget
+.sites li .forget,
+.driver .sites-list .forget
 {
     margin-left: auto;
     padding: 0 6px;
@@ -1461,8 +1464,7 @@ input:focus-visible
 
 /* Short and scrolling: the newest line is the interesting one, and a thousand of them
    would push the rest of the page off the bottom. */
-.proxy .lines,
-.driver .lines
+.log .lines
 {
     max-height: 208px;
     padding-top: 14px;
@@ -1470,22 +1472,19 @@ input:focus-visible
     border-top: 1px solid var(--rule);
 }
 
-.proxy .lines li,
-.driver .lines li
+.log .lines li
 {
     padding: 2px 0;
     font-size: 12px;
 }
 
-.proxy .lines code,
-.driver .lines code
+.log .lines code
 {
     color: var(--ink-soft);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.proxy .lines .quiet,
-.driver .lines .quiet
+.log .lines .quiet
 {
     color: var(--ink-faint);
     font-size: 13px;
@@ -1587,8 +1586,7 @@ input:focus-visible
 
     /* A line of the log is longer than the screen. Wrapping it keeps the newest one
        readable; a sideways scroll inside a page that already scrolls does not. */
-    .proxy .lines,
-    .driver .lines
+    .log .lines
     {
         max-height: 168px;
     }
@@ -1598,8 +1596,7 @@ input:focus-visible
         gap: 5px 6px;
     }
 
-    .proxy .lines code,
-    .driver .lines code
+    .log .lines code
     {
         overflow-wrap: anywhere;
     }
@@ -1680,4 +1677,41 @@ input:focus-visible
     font-size: 11px;
     font-weight: 400;
     letter-spacing: 0;
+}
+
+/* A heading inside a section, quieter than the section's own. */
+.driver h3
+{
+    margin: 22px 0 4px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+
+/* Folded by default: it grew while nobody was reading it and pushed the rest of the
+   page off the bottom. The count in the summary says whether it is worth opening. */
+.log
+{
+    margin: 14px 0 4px;
+}
+
+.log summary
+{
+    display: inline-block;
+    color: var(--ink-soft);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.log summary:hover
+{
+    color: var(--ink);
+}
+
+.log button
+{
+    margin-top: 8px;
 }
