@@ -183,8 +183,14 @@ function Ways({ evasion, say, onUseWay }:
                 </ul>
             )}
 
+            {/* The way that was found, not an empty string: empty means every way at
+                once, and this button names one. */}
             {evasion.works !== null && (
-                <button type="button" className="ghost" onClick={() => onUseWay('')}>
+                <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => onUseWay(evasion.works as string)}
+                >
                     {say.useThisWay(say.wayNames[evasion.works] ?? evasion.works)}
                 </button>
             )}
