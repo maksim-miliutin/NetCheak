@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pickTongue, WORDS } from './words';
+import { WAYS } from '../../api/src/proxy/ways.ts';
+import { PRESETS } from '../../api/src/proxy/presets.ts';
 import type { Cause, Verdict } from './types';
 
 const CAUSES: Cause[] =
@@ -132,17 +134,41 @@ describe('the two tongues', () =>
 
     // A preset is named the same in both, the way a product's modes are: what the
     // name means is in the sentence beside it, which is what gets translated.
+    /**
+     * The same in both languages on purpose. These are names of techniques, like
+     * Proxy and Driver above them, and a technique keeps its name across a border.
+     * What changes with the language is the sentence underneath.
+     */
     it('names each preset identically in both', () =>
     {
         expect(WORDS.ru.presetNames).toEqual(WORDS.en.presetNames);
     });
 
     // Short is the whole point: a name that runs to a sentence is the sentence.
-    it('keeps every preset name short', () =>
+    // Short enough to sit in a dropdown without being cut off, long enough to say
+    // what it does. Twelve was the old limit, and it only fitted Lite 1.
+    it('keeps every preset name to a line of a dropdown', () =>
     {
-        for (const name of Object.values(WORDS.en.presetNames))
+        for (const tongue of ['ru', 'en'] as const)
         {
-            expect(name.length).toBeLessThan(12);
+            for (const [id, name] of Object.entries(WORDS[tongue].presetNames))
+            {
+                expect(name.length, `${id} in ${tongue}`).toBeLessThan(30);
+            }
+        }
+    });
+
+    // A name that repeats the explanation under it is not a name.
+    it('says something shorter than the explanation beneath', () =>
+    {
+        for (const tongue of ['ru', 'en'] as const)
+        {
+            for (const [id, name] of Object.entries(WORDS[tongue].presetNames))
+            {
+                const said = WORDS[tongue].presetSays[id] ?? '';
+
+                expect(name.length, `${id} in ${tongue}`).toBeLessThan(said.length);
+            }
         }
     });
 
@@ -179,5 +205,34 @@ describe('the two tongues', () =>
 
         expect(WORDS.en.said.remote.detail(verdict)).toContain('A, B and C');
         expect(WORDS.ru.said.remote.detail(verdict)).toContain('A, B и C');
+    });
+});
+
+/**
+ * Three ways of writing a hello had no name in either language and showed as their
+ * own identifiers: tiny, records-three, both. The dictionary test passed anyway,
+ * because it compared the two languages against each other and not against the
+ * server, which is where the list of ways actually lives.
+ */
+describe('every way of writing has a name', () =>
+{
+    it.each(WAYS)('%s is named in both languages', (way) =>
+    {
+        for (const tongue of ['ru', 'en'] as const)
+        {
+            expect(WORDS[tongue].wayNames[way], `${way} in ${tongue}`).toBeTruthy();
+        }
+    });
+});
+
+describe('every preset has a name and a reason', () =>
+{
+    it.each(PRESETS.map((one) => one.id))('%s is named in both languages', (id) =>
+    {
+        for (const tongue of ['ru', 'en'] as const)
+        {
+            expect(WORDS[tongue].presetNames[id], `${id} in ${tongue}`).toBeTruthy();
+            expect(WORDS[tongue].presetSays[id], `${id} said in ${tongue}`).toBeTruthy();
+        }
     });
 });
