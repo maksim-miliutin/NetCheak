@@ -53,4 +53,6 @@ export type { Settings, DivertState } from '../../api/src/divert/runner.ts';
 
 export type { Attempt, Found } from '../../api/src/divert/search.ts';
 
+export type { DriverFound } from '../../api/src/db/checks.repository.ts';
+
 export type { Searched } from '../../api/src/http/divert.routes.ts';

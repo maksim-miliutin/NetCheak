@@ -136,6 +136,40 @@ export function divertRoutes(app: FastifyInstance,
 
     app.get('/api/divert/found', async () => ({ found: repository.listDriverFound() }));
 
+    /**
+     * Helps another site with settings that already worked somewhere. A filter is one
+     * thing, and searching again for each site would spend a minute apiece to arrive
+     * at the answer already in hand.
+     */
+    app.post<{ Body: { host?: string; like?: string } }>('/api/divert/found',
+        async (request) =>
+        {
+            const { host } = hostFrom(request.body?.host, 'That is not a host');
+            const already = repository.listDriverFound();
+
+            const like = request.body?.like === undefined
+                ? already[0]
+                : already.find((one) => one.host === request.body?.like);
+
+            if (like === undefined)
+            {
+                throw badRequest('Nothing has been found for any site yet, so there '
+                    + 'is nothing to copy. Search for one first.');
+            }
+
+            repository.rememberDriver({ ...like, host });
+
+            return { found: repository.listDriverFound() };
+        });
+
+    app.delete<{ Params: { host: string } }>('/api/divert/found/:host',
+        async (request) =>
+        {
+            repository.forgetDriver(request.params.host);
+
+            return { found: repository.listDriverFound() };
+        });
+
     return {
         start: () => existsSync(SCRIPT) && elevated()
             ? divert.start(settingsFrom({}, repository))

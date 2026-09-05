@@ -355,3 +355,57 @@ describe('closing', () =>
         expect(Date.now() - started).toBeLessThan(5000);
     }, 20_000);
 });
+
+describe('helping more than the site that was searched for', () =>
+{
+    async function copy(host: string): Promise<Response>
+    {
+        return await ask('/api/divert/found',
+        {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ host }),
+        });
+    }
+
+    it('refuses to copy settings before anything has been found', async () =>
+    {
+        const answer = await copy('youtube.com');
+
+        expect(answer.status).toBe(400);
+        expect(await answer.text()).toContain('Search for one first');
+    });
+
+    // A filter is one thing: a setting that gets past it for one site gets past it
+    // for the next. Searching again would spend a minute to arrive at the answer
+    // already in hand.
+    it('copies what worked for one site onto another', async () =>
+    {
+        new ChecksRepository(db).rememberDriver(
+            { host: 'discord.com', fooling: 'ttl', ttl: 6, repeats: 6 });
+
+        const answer = await copy('youtube.com');
+
+        expect(answer.status).toBe(200);
+
+        const { found } = await body<{ found: { host: string; ttl: number }[] }>(answer);
+
+        expect(found.find((one) => one.host === 'youtube.com')?.ttl).toBe(6);
+    });
+
+    it('refuses a host that is not one', async () =>
+    {
+        expect((await copy('not a host at all')).status).toBe(400);
+    });
+
+    it('lets a site go again', async () =>
+    {
+        new ChecksRepository(db).rememberDriver(
+            { host: 'gone.example', fooling: 'ttl', ttl: 6, repeats: 6 });
+
+        const answer = await ask('/api/divert/found/gone.example', { method: 'DELETE' });
+
+        expect(answer.status).toBe(200);
+        expect(await answer.text()).not.toContain('gone.example');
+    });
+});

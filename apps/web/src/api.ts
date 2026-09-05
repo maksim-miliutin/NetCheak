@@ -1,6 +1,7 @@
 import type
 {
     DivertState,
+    DriverFound,
     Searched,
     DnsCheck,
     Health,
@@ -13,7 +14,6 @@ import type
     Household,
     Newer,
     Outbound,
-    Settings,
     ProxyState,
     SixthCheck,
     Trace,
@@ -146,14 +146,20 @@ export const forgetRoute = (host: string): Promise<ProxyState> =>
 
 export const getDivert = (): Promise<DivertState> => request<DivertState>('/divert');
 
-export const setDivert = (running: boolean,
-    settings?: Partial<Settings>): Promise<DivertState> =>
-    request<DivertState>('/divert',
+export const helpAlso = (host: string): Promise<{ found: DriverFound[] }> =>
+    request<{ found: DriverFound[] }>('/divert/found',
     {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ running, ...settings }),
+        body: JSON.stringify({ host }),
     });
+
+export const getHelped = (): Promise<{ found: DriverFound[] }> =>
+    request<{ found: DriverFound[] }>('/divert/found');
+
+export const forgetHelped = (host: string): Promise<{ found: DriverFound[] }> =>
+    request<{ found: DriverFound[] }>(`/divert/found/${encodeURIComponent(host)}`,
+        { method: 'DELETE' });
 
 export const searchDivert = (target: string): Promise<Searched> =>
     request<Searched>('/divert/search',
