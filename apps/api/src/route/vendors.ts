@@ -20,11 +20,19 @@ export interface Maker
     randomised: boolean;
 }
 
-// Kept to what turns up on a home network. Sorted by who, not by number, because
-// this is read by people more often than by the program.
+// Kept to what turns up on a home network, which is a fraction of the thirty-odd
+// thousand prefixes handed out. A full list means either a megabyte inside the
+// binary or asking somebody else's server what is on this network, and the second
+// one is worse than not knowing.
+//
+// Sorted by who, not by number: this is read by people more often than by the
+// program.
 const MAKERS: [string, string, Kind][] =
 [
     ['00037F', 'Atheros', 'computer'],
+    ['A8A237', 'Arcadyan', 'router'],
+    ['ACB687', 'Arcadyan', 'router'],
+    ['D84489', 'TP-Link', 'router'],
     ['0004ED', 'Billion', 'router'],
     ['000C29', 'VMware', 'computer'],
     ['001018', 'Broadcom', 'computer'],
