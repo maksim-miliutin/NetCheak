@@ -1,4 +1,4 @@
-import type { Evasion, Preset, Way } from '../types';
+import type { Evasion, Way } from '../types';
 
 /**
  * Which ways of writing a hello have got past something, across every site checked
@@ -63,20 +63,4 @@ export function whatWorks(answers: (Evasion | 'running' | null)[]): Working
 export function marks(working: Working, way: Way): number
 {
     return working.ways.get(way) ?? 0;
-}
-
-/**
- * The lightest preset that writes a hello this way, or nothing when none does.
- *
- * The check finds a way and the proxy is chosen by preset, so somebody has to make
- * the step between them. The button that says "use this way" used to pass an empty
- * string, which means every way at once: it promised the one thing found and turned
- * on all ten.
- *
- * Lightest because the presets are already ordered by what they cost, and the first
- * one that writes this way is the cheapest way of getting it.
- */
-export function presetFor(way: Way, presets: Preset[]): string | undefined
-{
-    return presets.find((one) => one.way === way)?.id;
 }
