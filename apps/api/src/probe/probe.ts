@@ -1,4 +1,4 @@
-import { Socket } from 'node:net';
+import { knock } from './knock.ts';
 import { computeStatistics, type Sample, type Statistics } from './statistics.ts';
 
 export interface Target
@@ -22,47 +22,19 @@ export interface TargetResult
   statistics: Statistics;
 }
 
-export function probeOnce(host: string, port: number, timeoutMs: number): Promise<Sample>
+export async function probeOnce(host: string, port: number,
+    timeoutMs: number): Promise<Sample>
 {
-  return new Promise((resolve) =>
-  {
-    const socket = new Socket();
-    const started = performance.now();
-    let settled = false;
+    const knocked = await knock(host, port, timeoutMs);
 
-    const finish = (sample: Sample): void =>
+    if (knocked.answer === 'answered')
     {
-      if (settled)
-      {
-        return;
-      }
-      settled = true;
-      socket.destroy();
-      resolve(sample);
-    };
+        return { reachable: true, latencyMs: knocked.latencyMs, error: null };
+    }
 
-    socket.setTimeout(timeoutMs);
-
-    socket.once('connect', () => finish({
-      reachable: true,
-      latencyMs: performance.now() - started,
-      error: null,
-    }));
-
-    socket.once('timeout', () => finish({
-      reachable: false,
-      latencyMs: null,
-      error: 'timeout',
-    }));
-
-    socket.once('error', (error: NodeJS.ErrnoException) => finish({
-      reachable: false,
-      latencyMs: null,
-      error: error.code ?? error.message,
-    }));
-
-    socket.connect(port, host);
-  });
+    // A refusal reached a machine, and this call does not care which kind of
+    // not-reachable it was: the statistics beside it count what came back.
+    return { reachable: false, latencyMs: null, error: knocked.code ?? 'unreachable' };
 }
 
 const wait = (ms: number): Promise<void> =>

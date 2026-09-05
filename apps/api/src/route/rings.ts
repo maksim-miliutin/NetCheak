@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { getServers } from 'node:dns';
-import { Socket } from 'node:net';
+import { knock, knockedFor } from '../probe/knock.ts';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
@@ -86,10 +86,8 @@ export function parseGateway(platform: string, output: string): string | null
 
 /** The resolvers the system itself uses, minus the loopback stubs that proxy them. */
 /** A reset means the machine is there; anything else leaves it unproven. */
-export function outcomeFor(code: string | undefined): Answer
-{
-    return code === 'ECONNREFUSED' || code === 'ECONNRESET' ? 'refused' : 'silent';
-}
+/** Kept as it was named here, now that the reading itself lives with the knock. */
+export const outcomeFor = knockedFor;
 
 export function localResolvers(): string[]
 {
@@ -115,37 +113,10 @@ async function reachAny(host: string, ports: number[]): Promise<Reach>
     return last;
 }
 
-export function reach(host: string, port: number, timeoutMs = TIMEOUT_MS): Promise<Reach>
+export async function reach(host: string, port: number,
+    timeoutMs = TIMEOUT_MS): Promise<Reach>
 {
-    return new Promise((resolve) =>
-    {
-        const socket = new Socket();
-        const started = performance.now();
-        let settled = false;
+    const knocked = await knock(host, port, timeoutMs);
 
-        const finish = (answer: Answer, latencyMs: number | null): void =>
-        {
-            if (settled)
-            {
-                return;
-            }
-
-            settled = true;
-            socket.destroy();
-            resolve({ host, port, answer, latencyMs });
-        };
-
-        socket.setTimeout(timeoutMs);
-        socket.once('connect', () => finish('answered', performance.now() - started));
-        socket.once('timeout', () => finish('silent', null));
-
-        socket.once('error', (error: NodeJS.ErrnoException) =>
-        {
-            const answer = outcomeFor(error.code);
-
-            finish(answer, answer === 'refused' ? performance.now() - started : null);
-        });
-
-        socket.connect(port, host);
-    });
+    return { host, port, answer: knocked.answer, latencyMs: knocked.latencyMs };
 }
