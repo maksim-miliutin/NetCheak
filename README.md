@@ -72,15 +72,17 @@ gets past, and then be that way.
 
 ```mermaid
 flowchart LR
-    A[Hello sent whole] -->|cut| B[Try five ways]
+    A[Hello sent whole] -->|cut| B[Try seven other ways]
     B --> C[cut through the name]
     B --> D[one byte first]
-    B --> E[into four pieces]
-    B --> F[two TLS records]
+    B --> E[four pieces, or ten]
+    B --> F[two TLS records, or three]
+    B --> M[cut and split at once]
     C --> G{Any got through?}
     D --> G
     E --> G
     F --> G
+    M --> G
     G -->|yes| H[Start that proxy]
     G -->|no| I[Say so, rather than guess]
 ```
@@ -113,6 +115,16 @@ the address for the phone's Wi-Fi settings is shown. Everybody else on that netw
 route through it while that is on, which the app says plainly and which is why it is
 off by default. Only addresses inside a home network are offered: a public one would
 mean the proxy is open to the whole internet rather than to the flat.
+
+### Which path a packet takes
+
+![Which path a packet takes](docs/paths.png)
+
+Three of them, and which one a program is on decides what can be done for it. A
+browser asks the system where to go and lands on the proxy. A game or a chat client
+opens its own connections and never asks, so only the driver reaches it. Anything
+two programs say to each other on this machine is left alone: there is no filter out
+there to fool, and a copy sent into that conversation breaks it.
 
 ### Every packet, whatever the program
 
@@ -158,21 +170,27 @@ says so at the bottom. Devices on your network are counted in it, never named.
 apps/api/src/
     probe/      one TCP connection per attempt, timed
     verdict/    turns results into a named cause
-    route/      gateway, traceroute, neighbours, IPv6
+    route/      gateway, traceroute, neighbours, IPv6, who made a card
     dns/        two resolvers compared; lookups over HTTPS
     tls/        handshakes, certificates, who cut the connection
     mtu/        the largest packet the path carries whole
     proxy/      the ways of writing a hello, and the proxies that do
-    divert/     packet arithmetic for the driver path
+    divert/     packet arithmetic for the driver path, and its filter
+    access/     who may reach this machine, and the word a phone carries
+    targets/    what counts as an address to watch
     speed/      the measurement and its maths
+    update/     whether a newer version exists
     report/     plain text for somebody who will never open this
-    db/         SQLite, migrations, the repository
+    db/         SQLite, migrations, the repository, how long it keeps
     http/       routes, and what the last checks found
 apps/web/src/
-    App.tsx     the page
+    App.tsx     the page itself
+    parts/      one file per block it draws
+    hold/       what the page holds, beside the doing of it
+    read/       server answers turned into what to show
+    ask/        asking the server, and when to ask again
     words.ts    every string, in both languages
-    trace.ts    history into a line
-tools/          binary build, driver checks
+tools/          binary build, driver checks, the driver loop
 ```
 
 ## Where the time goes
