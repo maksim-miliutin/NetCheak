@@ -14,6 +14,12 @@ export interface Settings
     hello: string | null;
     /** A recorded datagram sent ahead of a call, or nothing to leave voice alone. */
     voice: string | null;
+
+    /**
+     * The name written into a copy when no recording is used. A filter follows a
+     * copy it has no objection to, and how sure that is decides whether it works.
+     */
+    decoyName?: string;
     // Empty means everything, which is how a machine doing nothing in particular
     // came to send six copies a second to sites nobody blocks.
     only: string[];
@@ -155,6 +161,11 @@ export function asArguments(settings: Settings): string[]
     if (settings.only.length > 0)
     {
         said.push(`only=${settings.only.join(',')}`);
+    }
+
+    if (settings.decoyName !== undefined)
+    {
+        said.push(`name=${settings.decoyName}`);
     }
 
     return said;

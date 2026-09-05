@@ -53,10 +53,29 @@ describe('candidates', () =>
 
     it('offers no two that are the same', () =>
     {
-        const said = candidates(null, null)
-            .map((one) => `${one.fooling}:${one.ttl}:${one.repeats}`);
+        const said = candidates(null, null).map((one) =>
+            `${one.fooling}:${one.ttl}:${one.repeats}:${one.decoyName ?? ''}`);
 
         expect(new Set(said).size).toBe(said.length);
+    });
+
+    // Which name a copy carries decides whether a filter objects to it, and that is
+    // worth trying more than one of.
+    it('tries every name when there is no recording to carry one', () =>
+    {
+        const names = new Set(candidates(null, null).map((one) => one.decoyName));
+
+        expect(names.size).toBeGreaterThan(3);
+    });
+
+    // A recorded hello carries the name of whoever was recorded. There is nothing
+    // to vary, and pretending otherwise would run the same attempt six times.
+    it('varies nothing about the name when a recording carries it', () =>
+    {
+        const tried = candidates('bin/hello.bin', null);
+
+        expect(tried).toHaveLength(8);
+        expect(tried.every((one) => one.decoyName === undefined)).toBe(true);
     });
 });
 

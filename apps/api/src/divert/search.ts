@@ -7,6 +7,7 @@
  */
 
 import type { Settings } from './runner.ts';
+import { lureNames } from './lures.ts';
 
 export interface Attempt
 {
@@ -20,7 +21,7 @@ export interface Found
     settings: Settings | null;
     tried: Attempt[];
 
-    /** The site answered before anything was tried on its behalf. */
+    /** It answered before anything was tried on its behalf. */
     already: boolean;
 }
 
@@ -55,8 +56,21 @@ export function candidates(hello: string | null, voice: string | null,
         ['badseq', 6, 12],
     ];
 
-    return ways.map(([fooling, ttl, repeats]) =>
+    const settings = ways.map(([fooling, ttl, repeats]) =>
         ({ fooling, ttl, repeats, hello, voice, only }));
+
+    // A recorded hello carries the name of whoever was recorded, so there is nothing
+    // to vary. Without one the name is written in, and which name it is decides
+    // whether a filter objects: that is worth trying more than one of.
+    if (hello !== null)
+    {
+        return settings;
+    }
+
+    // Names outside, ways inside: most failures are the way, not the name. Forty-
+    // eight is a ceiling, not a cost — this stops at the first one that answers.
+    return lureNames().flatMap((decoyName) =>
+        settings.map((one) => ({ ...one, decoyName })));
 }
 
 /** Asked once before anything starts: a site that opens on its own needs nothing. */
